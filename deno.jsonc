@@ -39,7 +39,11 @@
     "indentWidth": 2,
     "semiColons": false,
     "singleQuote": false,
-    "proseWrap": "preserve"
+    "proseWrap": "preserve",
+    "include": [
+      "src/",
+      "*.js"
+    ]
   },
   "lint": {
     "rules": {

@@ -17,6 +17,7 @@
     "tabs",
     "tabGroups",
     "bookmarks",
-    "storage"
+    "storage",
+    "favicon"
   ]
 }
