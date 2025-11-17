@@ -1,0 +1,51 @@
+{
+  "compilerOptions": {
+    "lib": [
+      "deno.window",
+      "dom"
+    ],
+    "strict": true,
+    "checkJs": false,
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+    "types": [
+      "@types/webextension-polyfill",
+      "@types/chrome"
+    ]
+  },
+  "imports": {
+    "@effect/platform": "npm:@effect/platform@^0.66.0",
+    "effect": "npm:effect@^3.8.0",
+    "webextension-polyfill": "npm:webextension-polyfill@^0.12.0",
+    "@types/webextension-polyfill": "npm:@types/webextension-polyfill@^0.10.0",
+    "@types/chrome": "npm:@types/chrome@^0.0.268",
+    "tailwindcss": "npm:tailwindcss@^3.4.0",
+    "preact": "npm:preact@^10.24.0",
+    "preact/": "npm:/preact/"
+  },
+  "tasks": {
+    "dev": "deno run --watch --allow-read --allow-write src/main.tsx",
+    "build": "deno task build:css && deno bundle --outdir dist sidepanel.html && deno bundle --outdir dist src/background.ts",
+    "build:css": "deno run -A npm:tailwindcss -i src/input.css -o dist/output.css --minify",
+    "build:background": "deno bundle --outdir dist src/background.ts",
+    "build:sidepanel": "deno bundle --outdir dist sidepanel.html",
+    "lint": "deno lint",
+    "fmt": "deno fmt",
+    "check": "deno check src/main.tsx src/background.ts"
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 80,
+    "indentWidth": 2,
+    "semiColons": false,
+    "singleQuote": false,
+    "proseWrap": "preserve"
+  },
+  "lint": {
+    "rules": {
+      "tags": [
+        "recommended"
+      ]
+    }
+  }
+}

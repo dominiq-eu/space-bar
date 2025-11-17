@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Effect-TS Chrome Sidepanel",
+  "version": "1.0.0",
+  "description": "A modern Chrome extension built with Deno, TypeScript, and Effect-TS",
+  "background": {
+    "service_worker": "dist/background.js"
+  },
+  "side_panel": {
+    "default_path": "dist/sidepanel.html"
+  },
+  "action": {
+    "default_title": "Open sidepanel"
+  },
+  "permissions": [
+    "sidePanel",
+    "tabs",
+    "tabGroups",
+    "bookmarks",
+    "storage"
+  ]
+}
