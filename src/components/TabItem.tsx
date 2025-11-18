@@ -143,7 +143,7 @@ export function TabItem({
     e.stopPropagation()
 
     // Estimate context menu height and width
-    const menuHeight = 80
+    const menuHeight = 120 // 3 buttons now (Rename, Pin/Unpin, Close)
     const menuWidth = 150
 
     // Calculate position
@@ -175,7 +175,7 @@ export function TabItem({
     const tabUrl = urlToString(tab.url)
 
     Effect.runPromise(
-      renameTabBookmark(currentWindowId as WindowId, tabUrl, newTitle.trim())
+      renameTabBookmark(currentWindowId as WindowId, tabUrl, newTitle.trim(), tab.pinned)
     )
       .then(() => {
         setRenameDialog(null)
@@ -190,6 +190,13 @@ export function TabItem({
   const handleCloseFromMenu = () => {
     if (tab.id) {
       chrome.tabs.remove(tab.id)
+    }
+    setContextMenu(null)
+  }
+
+  const handleTogglePin = () => {
+    if (tab.id) {
+      chrome.tabs.update(tab.id, { pinned: !tab.pinned })
     }
     setContextMenu(null)
   }
@@ -240,11 +247,10 @@ export function TabItem({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onContextMenu={handleContextMenu}
-        class={`group font-mono text-xs overflow-hidden flex items-center gap-2 cursor-pointer hover:bg-gray-200 px-1 py-0.5 rounded transition-colors ${isDragging ? "opacity-50" : ""}`}
+        class={`group font-mono text-xs overflow-hidden flex items-center gap-2 cursor-pointer hover:bg-gray-200 px-1 py-0.5 rounded transition-colors ${isDragging ? "opacity-50" : ""} ${tab.active ? "bg-gray-300 bg-opacity-50" : ""}`}
         onClick={handleClick}
       >
         <div class="flex items-center gap-2 flex-1 min-w-0">
-          {tab.active && <span>🔸</span>}
           {faviconUrl ? (
             <img src={faviconUrl} alt="" class="w-4 h-4 flex-shrink-0" />
           ) : (
@@ -276,6 +282,13 @@ export function TabItem({
             onClick={handleRename}
           >
             Rename
+          </button>
+          <button
+            type="button"
+            class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
+            onClick={handleTogglePin}
+          >
+            {tab.pinned ? "Unpin" : "Pin"}
           </button>
           <button
             type="button"

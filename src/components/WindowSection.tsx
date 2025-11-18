@@ -20,6 +20,7 @@ export interface WindowSectionProps {
   draggedTab: DragData | null
   collapsed?: boolean
   onToggleCollapsed?: () => void
+  isCurrentWindow?: boolean
 }
 
 export function WindowSection({
@@ -36,6 +37,7 @@ export function WindowSection({
   draggedTab,
   collapsed,
   onToggleCollapsed,
+  isCurrentWindow,
 }: WindowSectionProps) {
   const pinnedTabs = tabs.filter((tab) => tab.pinned)
   const unpinnedTabs = tabs.filter((tab) => !tab.pinned)
@@ -72,34 +74,37 @@ export function WindowSection({
 
   return (
     <div class="mb-4">
-      <div
-        class="flex items-center justify-between mb-2 px-3 py-2 bg-gray-200 rounded cursor-pointer hover:bg-gray-300 transition-colors"
-        onClick={onToggleCollapsed}
-      >
-        <div class="font-bold">
-          {collapsed !== undefined && (
-            <span class="mr-2">{collapsed ? "▶" : "▼"}</span>
-          )}
-          Window {window.id} ({tabs.length} tabs)
+      {/* Show window header only for non-current windows */}
+      {!isCurrentWindow && (
+        <div
+          class="flex items-center justify-between mb-2 px-3 py-2 bg-gray-200 rounded cursor-pointer hover:bg-gray-300 transition-colors"
+          onClick={onToggleCollapsed}
+        >
+          <div class="font-bold">
+            {collapsed !== undefined && (
+              <span class="mr-2">{collapsed ? "▶" : "▼"}</span>
+            )}
+            Window {window.id} ({tabs.length} tabs)
+          </div>
+          <div class="flex gap-1" onClick={(e) => e.stopPropagation()}>
+            {linkedWorkspaceName ? (
+              <span class="text-xs bg-green-500 text-white px-2 py-0.5 rounded">
+                {linkedWorkspaceName}
+              </span>
+            ) : (
+              window.id && (
+                <button
+                  type="button"
+                  class="px-2 py-0.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
+                  onClick={() => onLinkWorkspace(window.id!)}
+                >
+                  Link to Workspace
+                </button>
+              )
+            )}
+          </div>
         </div>
-        <div class="flex gap-1" onClick={(e) => e.stopPropagation()}>
-          {linkedWorkspaceName ? (
-            <span class="text-xs bg-green-500 text-white px-2 py-0.5 rounded">
-              {linkedWorkspaceName}
-            </span>
-          ) : (
-            window.id && (
-              <button
-                type="button"
-                class="px-2 py-0.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
-                onClick={() => onLinkWorkspace(window.id!)}
-              >
-                Link to Workspace
-              </button>
-            )
-          )}
-        </div>
-      </div>
+      )}
       {!collapsed && (
         <div
           class="px-2 min-h-[100px]"
@@ -113,6 +118,7 @@ export function WindowSection({
             }
           }}
         >
+          {/* Pinned Tabs Section - has its own header */}
           <PinnedTabs
             tabs={pinnedTabs}
             currentWindowId={currentWindowId}
@@ -120,6 +126,12 @@ export function WindowSection({
             onDragStart={onDragStart}
             draggedTab={draggedTab}
           />
+
+          {/* Tabs Section - only show header if there are unpinned tabs/groups AND this is current window */}
+          {isCurrentWindow && items.length > 0 && (
+            <div class="font-bold mb-1">Tabs ({unpinnedTabs.length}):</div>
+          )}
+
           {items.map((item, index) => {
             if (item.type === "tab") {
               return (

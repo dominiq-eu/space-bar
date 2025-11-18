@@ -16,6 +16,11 @@ export const VALID_GROUP_COLORS = [
 export type GroupColor = typeof VALID_GROUP_COLORS[number]
 
 /**
+ * Folder name for pinned tabs in workspace bookmarks
+ */
+export const PINNED_FOLDER_NAME = "[pinned]"
+
+/**
  * Parse group metadata from bookmark folder title
  * Format: [color][collapsed] Title or [color] Title
  *
@@ -64,4 +69,46 @@ export function createGroupTitle(
 ): string {
   const collapsedMarker = collapsed ? "[collapsed]" : ""
   return `[${color}]${collapsedMarker} ${title || "Unnamed Group"}`
+}
+
+/**
+ * Parse pinned status from bookmark title
+ * Format: [pinned] Title
+ *
+ * @returns { pinned: boolean, title: string } - Whether the tab is pinned and the clean title
+ *
+ * @example
+ * parseBookmarkPinnedStatus("[pinned] GitHub")
+ * // Returns: { pinned: true, title: "GitHub" }
+ *
+ * parseBookmarkPinnedStatus("GitHub")
+ * // Returns: { pinned: false, title: "GitHub" }
+ */
+export function parseBookmarkPinnedStatus(bookmarkTitle: string): {
+  pinned: boolean
+  title: string
+} {
+  const pinnedMatch = bookmarkTitle.match(/^\[pinned\]\s*/)
+  const isPinned = pinnedMatch !== null
+
+  const cleanTitle = bookmarkTitle.replace(/^\[pinned\]\s*/, "").trim()
+
+  return {
+    pinned: isPinned,
+    title: cleanTitle,
+  }
+}
+
+/**
+ * Create bookmark title with pinned metadata
+ *
+ * @example
+ * createBookmarkTitle("GitHub", true)
+ * // Returns: "[pinned] GitHub"
+ *
+ * createBookmarkTitle("GitHub", false)
+ * // Returns: "GitHub"
+ */
+export function createBookmarkTitle(title: string, pinned: boolean): string {
+  return pinned ? `[pinned] ${title}` : title
 }

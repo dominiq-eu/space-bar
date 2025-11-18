@@ -1,9 +1,10 @@
 import { Effect } from "effect"
 import type { WorkspaceId } from "../state-service/types.ts"
+import { parseBookmarkPinnedStatus } from "./metadata-parser.ts"
 
 /**
  * Recursively collects all bookmark URLs and titles from a workspace folder
- * Returns a Map of URL → Bookmark Title
+ * Returns a Map of URL → Bookmark Title (without [pinned] prefix)
  */
 const collectBookmarkTitles = (
   bookmarkNode: chrome.bookmarks.BookmarkTreeNode,
@@ -11,7 +12,9 @@ const collectBookmarkTitles = (
 ): void => {
   // If this is a bookmark (has URL), add it to the map
   if (bookmarkNode.url) {
-    titleMap.set(bookmarkNode.url, bookmarkNode.title || "")
+    // Parse title to remove [pinned] prefix if present
+    const { title } = parseBookmarkPinnedStatus(bookmarkNode.title || "")
+    titleMap.set(bookmarkNode.url, title)
   }
 
   // If this has children (is a folder), recurse

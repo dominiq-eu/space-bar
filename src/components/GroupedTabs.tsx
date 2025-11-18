@@ -15,6 +15,14 @@ export interface GroupedTabsProps {
   draggedTab: DragData | null
 }
 
+// Helper function to convert hex to rgba
+const hexToRgba = (hex: string, alpha: number): string => {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 export function GroupedTabs({
   group,
   tabs,
@@ -49,16 +57,25 @@ export function GroupedTabs({
     }
   }
 
+  const groupColor = colorMap[group.color] || "#5f6368"
+  const backgroundColor = hexToRgba(groupColor, 0.1)
+  const borderColor = groupColor
+
   return (
-    <div class="mb-3">
+    <div
+      class="mb-3 rounded px-2 py-2"
+      style={{
+        backgroundColor: backgroundColor,
+        border: `1px solid ${borderColor}`,
+      }}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <div
-        class="group font-bold mb-1 cursor-pointer hover:opacity-70 transition-opacity rounded px-2 py-1 flex items-center justify-between"
+        class="group font-bold mb-1 cursor-pointer hover:opacity-70 transition-opacity flex items-center justify-between"
         style={{
-          color: colorMap[group.color] || "#000",
-          backgroundColor: draggedTab ? "rgba(0,0,0,0.05)" : "transparent",
+          color: groupColor,
         }}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
       >
         <div onClick={handleToggle} class="flex-1">
           {group.collapsed ? "▶ " : "▼ "}
@@ -74,7 +91,7 @@ export function GroupedTabs({
       </div>
       {!group.collapsed &&
         tabs.map((tab) => (
-          <div key={tab.id} class="pl-4">
+          <div key={tab.id}>
             <TabItem
               tab={tab}
               currentWindowId={currentWindowId}

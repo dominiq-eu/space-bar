@@ -100,7 +100,9 @@ export function App() {
         loadWindowWorkspaceMap()
         setShowLinkDialog(null)
         // Trigger initial sync
-        Effect.runPromise(syncWorkspace(windowId, workspaceId))
+        syncWorkspace(windowId, workspaceId).catch((error) => {
+          console.error("Failed to sync workspace:", error)
+        })
       })
       .catch((error) => {
         console.error("Failed to link workspace:", error)
@@ -208,7 +210,7 @@ export function App() {
         Effect.runPromise(getWorkspaceForWindow(wId as WindowId)).then((workspaceIdOption) => {
           if (isSome(workspaceIdOption)) {
             const workspaceId = workspaceIdOption.value
-            Effect.runPromise(syncWorkspace(wId, workspaceId)).catch(
+            syncWorkspace(wId, workspaceId).catch(
               (error) => {
                 console.error("Failed to sync workspace:", error)
               },
@@ -435,6 +437,7 @@ export function App() {
             onDropOnGroup={handleDropOnGroup}
             onDropOnWindow={handleDropOnWindow}
             draggedTab={draggedTab}
+            isCurrentWindow={true}
           />
         )}
         {otherWindows.length > 0 && (

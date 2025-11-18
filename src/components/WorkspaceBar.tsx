@@ -7,7 +7,7 @@ import {
   loadWorkspaceInWindow,
   restoreWorkspace,
 } from "../services/workspaces-service/index.ts"
-import { linkWindowToWorkspace } from "../services/storage-service/index.ts"
+import { linkWindowToWorkspace, unlinkWindow } from "../services/storage-service/index.ts"
 
 export interface WorkspaceBarProps {
   currentWindowId: number | null
@@ -35,6 +35,9 @@ export function WorkspaceBar({
   } | null>(null)
   const [workspaceName, setWorkspaceName] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [takeoverDialog, setTakeoverDialog] = useState<{
+    workspaceId: string
+  } | null>(null)
 
   const loadWorkspaces = () => {
     Effect.runPromise(getBookmarksBar).then((bookmarksBar) => {
@@ -89,14 +92,39 @@ export function WorkspaceBar({
   const handleLoadWorkspace = (workspaceId: string) => {
     if (!currentWindowId) return
 
+    // Check if switching from unlinked state to a workspace
+    if (!linkedWorkspaceId) {
+      // Show takeover dialog
+      setTakeoverDialog({ workspaceId })
+      return
+    }
+
     setIsLoading(true)
-    Effect.runPromise(loadWorkspaceInWindow(workspaceId, currentWindowId))
+    Effect.runPromise(loadWorkspaceInWindow(workspaceId, currentWindowId, false))
       .then(() => {
         setIsLoading(false)
       })
       .catch((error) => {
         console.error("Failed to load workspace:", error)
         setIsLoading(false)
+      })
+  }
+
+  const handleTakeoverConfirm = (keepTabs: boolean) => {
+    if (!takeoverDialog || !currentWindowId) return
+
+    setIsLoading(true)
+    Effect.runPromise(
+      loadWorkspaceInWindow(takeoverDialog.workspaceId, currentWindowId, keepTabs)
+    )
+      .then(() => {
+        setIsLoading(false)
+        setTakeoverDialog(null)
+      })
+      .catch((error) => {
+        console.error("Failed to load workspace:", error)
+        setIsLoading(false)
+        setTakeoverDialog(null)
       })
   }
 
@@ -135,6 +163,16 @@ export function WorkspaceBar({
       currentName: "",
     })
     setWorkspaceName("")
+  }
+
+  const handleUnlinkWorkspace = () => {
+    if (!currentWindowId) return
+
+    // Unlink the window from the workspace (tabs stay open)
+    Effect.runPromise(unlinkWindow(currentWindowId as WindowId))
+      .catch((error) => {
+        console.error("Failed to unlink workspace:", error)
+      })
   }
 
   const handleConfirmDialog = () => {
@@ -231,15 +269,25 @@ export function WorkspaceBar({
 
   return (
     <div class="fixed bottom-0 left-0 right-0 bg-gray-100 border-t border-gray-300 p-2">
-      <div class="flex gap-2 overflow-x-auto">
+      <div class="flex gap-2 overflow-x-auto items-center">
+        {/* Unlinked state button */}
         <button
           type="button"
-          class="px-3 py-1 text-xs rounded-full transition-colors whitespace-nowrap flex-shrink-0 bg-green-500 text-white hover:bg-green-600 font-bold"
-          onClick={handleCreateWorkspace}
-          title="Save current workspace"
+          class={`px-3 py-1 text-xs rounded-full transition-colors whitespace-nowrap flex-shrink-0 ${
+            !linkedWorkspaceId
+              ? "bg-blue-500 text-white hover:bg-blue-600"
+              : "bg-gray-300 text-gray-700 hover:bg-gray-400"
+          }`}
+          onClick={handleUnlinkWorkspace}
+          title={!linkedWorkspaceId ? "Unlinked workspace" : "Unlink from workspace"}
         >
-          +
+          ☰
         </button>
+
+        {/* Vertical separator */}
+        <div class="h-6 w-px bg-gray-400 flex-shrink-0"></div>
+
+        {/* Workspace buttons */}
         {workspaces.map((workspace) => {
           const isLinked = linkedWorkspaceId === workspace.id
           return (
@@ -258,6 +306,16 @@ export function WorkspaceBar({
             </button>
           )
         })}
+
+        {/* Create new workspace button at the end */}
+        <button
+          type="button"
+          class="px-3 py-1 text-xs rounded-full transition-colors whitespace-nowrap flex-shrink-0 bg-green-500 text-white hover:bg-green-600 font-bold"
+          onClick={handleCreateWorkspace}
+          title="Save current workspace"
+        >
+          +
+        </button>
       </div>
       {contextMenu && (
         <div
@@ -321,6 +379,39 @@ export function WorkspaceBar({
                   setWorkspaceDialog(null)
                   setWorkspaceName("")
                 }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {takeoverDialog && (
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div class="bg-white p-4 rounded shadow-lg max-w-sm w-full mx-4">
+            <h3 class="font-bold mb-3 text-sm">Switch to Workspace</h3>
+            <p class="text-xs text-gray-600 mb-4">
+              Would you like to keep the current tabs when switching to this workspace?
+            </p>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                class="flex-1 px-3 py-2 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
+                onClick={() => handleTakeoverConfirm(true)}
+              >
+                Keep Tabs
+              </button>
+              <button
+                type="button"
+                class="flex-1 px-3 py-2 bg-gray-300 text-gray-700 text-xs rounded hover:bg-gray-400 transition-colors"
+                onClick={() => handleTakeoverConfirm(false)}
+              >
+                Close Tabs
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 bg-gray-200 text-gray-600 text-xs rounded hover:bg-gray-300 transition-colors"
+                onClick={() => setTakeoverDialog(null)}
               >
                 Cancel
               </button>
