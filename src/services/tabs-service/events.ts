@@ -1,5 +1,5 @@
-import { Schema, Option } from "effect"
-import { Tab, TabId, WindowId, GroupId } from "../state-service/types.ts"
+import { Option, Schema } from "effect"
+import { GroupId, Tab, TabId, WindowId } from "../state-service/types.ts"
 
 /**
  * Tab Created Event
@@ -110,7 +110,9 @@ export const TabGroupUpdatedEvent = Schema.Struct({
   groupId: GroupId,
   windowId: WindowId,
   changes: Schema.Struct({
-    title: Schema.optional(Schema.OptionFromSelf(Schema.String.pipe(Schema.minLength(1)))),
+    title: Schema.optional(
+      Schema.OptionFromSelf(Schema.String.pipe(Schema.minLength(1))),
+    ),
     color: Schema.optional(
       Schema.Literal(
         "grey",

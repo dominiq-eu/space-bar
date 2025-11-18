@@ -87,21 +87,23 @@ export function WindowSection({
             Window {window.id} ({tabs.length} tabs)
           </div>
           <div class="flex gap-1" onClick={(e) => e.stopPropagation()}>
-            {linkedWorkspaceName ? (
-              <span class="text-xs bg-green-500 text-white px-2 py-0.5 rounded">
-                {linkedWorkspaceName}
-              </span>
-            ) : (
-              window.id && (
-                <button
-                  type="button"
-                  class="px-2 py-0.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
-                  onClick={() => onLinkWorkspace(window.id!)}
-                >
-                  Link to Workspace
-                </button>
+            {linkedWorkspaceName
+              ? (
+                <span class="text-xs bg-green-500 text-white px-2 py-0.5 rounded">
+                  {linkedWorkspaceName}
+                </span>
               )
-            )}
+              : (
+                window.id && (
+                  <button
+                    type="button"
+                    class="px-2 py-0.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
+                    onClick={() => onLinkWorkspace(window.id!)}
+                  >
+                    Link to Workspace
+                  </button>
+                )
+              )}
           </div>
         </div>
       )}

@@ -1,26 +1,26 @@
 import { Effect } from "effect"
 import { Window, WindowId } from "../state-service/types.ts"
-import { mapChromeWindows, mapChromeWindow } from "./mappers.ts"
+import { mapChromeWindow, mapChromeWindows } from "./mappers.ts"
 import {
-  WindowNotFoundError,
   InvalidWindowDataError,
+  WindowNotFoundError,
   WindowOperationFailedError,
 } from "./errors.ts"
 import type {
+  WindowCreatedEvent,
   WindowEvent,
   WindowEventListener,
-  WindowCreatedEvent,
-  WindowRemovedEvent,
   WindowFocusChangedEvent,
+  WindowRemovedEvent,
 } from "./events.ts"
 
 // Re-export event types
 export type {
+  WindowCreatedEvent,
   WindowEvent,
   WindowEventListener,
-  WindowCreatedEvent,
-  WindowRemovedEvent,
   WindowFocusChangedEvent,
+  WindowRemovedEvent,
 }
 
 // ============================================================================
@@ -105,7 +105,10 @@ export const createWindow = (options?: {
   focused?: boolean
   incognito?: boolean
   type?: "normal" | "popup" | "panel"
-}): Effect.Effect<Window, WindowOperationFailedError | InvalidWindowDataError> =>
+}): Effect.Effect<
+  Window,
+  WindowOperationFailedError | InvalidWindowDataError
+> =>
   Effect.gen(function* () {
     const chromeWindow = yield* Effect.async<
       chrome.windows.Window,
@@ -208,7 +211,7 @@ export const removeWindow = (
  */
 export const subscribeToWindowEvents = (
   listener: WindowEventListener,
-): (() => void) => {
+): () => void => {
   // Window Created
   const onWindowCreated = (chromeWindow: chrome.windows.Window) => {
     if (chromeWindow.id !== undefined) {

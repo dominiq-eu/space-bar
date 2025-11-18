@@ -1,4 +1,4 @@
-import { Effect, Console } from "effect"
+import { Console, Effect } from "effect"
 import { render } from "preact"
 import { App } from "./components/App.tsx"
 

@@ -1,21 +1,30 @@
 import { Effect, Option } from "effect"
-import type { AppState, TabGroup, GroupId, WindowId, WorkspaceId } from "../state-service/types.ts"
+import type {
+  AppState,
+  GroupId,
+  TabGroup,
+  WindowId,
+  WorkspaceId,
+} from "../state-service/types.ts"
 import { createAppState } from "../state-service/index.ts"
-import { linkWindowToWorkspace, unlinkWindow } from "../storage-service/index.ts"
 import {
-  parseGroupMetadata,
-  createGroupTitle,
-  VALID_GROUP_COLORS,
-  parseBookmarkPinnedStatus,
+  linkWindowToWorkspace,
+  unlinkWindow,
+} from "../storage-service/index.ts"
+import {
   createBookmarkTitle,
+  createGroupTitle,
+  parseBookmarkPinnedStatus,
+  parseGroupMetadata,
   PINNED_FOLDER_NAME,
+  VALID_GROUP_COLORS,
 } from "./metadata-parser.ts"
 import {
-  urlToString,
-  optionToUndefined,
   getOrElse,
   isSome,
   optionContains,
+  optionToUndefined,
+  urlToString,
 } from "../../utils/type-conversions.ts"
 
 // Global flag to prevent sync during workspace loading
@@ -36,7 +45,8 @@ const setIsLoadingWorkspace = (value: boolean) => {
 }
 
 // Global sync state management to prevent concurrent syncs
-const syncState: Map<string, { isSyncing: boolean; timeoutId: number | null }> = new Map()
+const syncState: Map<string, { isSyncing: boolean; timeoutId: number | null }> =
+  new Map()
 
 /**
  * Get or create sync state for a workspace
@@ -62,7 +72,10 @@ const TAB_LOAD_TIMEOUT_MS = 3000 // Max time to wait for tab metadata (3 seconds
  * @param timeoutMs - Maximum time to wait in milliseconds
  * @returns Promise that resolves when tab has metadata or timeout is reached
  */
-const waitForTabMetadata = (tabId: number, timeoutMs: number): Promise<void> => {
+const waitForTabMetadata = (
+  tabId: number,
+  timeoutMs: number,
+): Promise<void> => {
   return new Promise((resolve) => {
     let timeoutId: number | null = null
     let resolved = false
@@ -78,11 +91,14 @@ const waitForTabMetadata = (tabId: number, timeoutMs: number): Promise<void> => 
     }
 
     // Listen for tab updates
-    const listener = (updatedTabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
+    const listener = (
+      updatedTabId: number,
+      changeInfo: chrome.tabs.TabChangeInfo,
+    ) => {
       if (updatedTabId === tabId) {
         // Wait for the tab to have a title (means metadata is loaded)
         // We check changeInfo.title OR changeInfo.status === 'complete'
-        if (changeInfo.title || changeInfo.status === 'complete') {
+        if (changeInfo.title || changeInfo.status === "complete") {
           chrome.tabs.onUpdated.removeListener(listener)
           resolveOnce()
         }
@@ -109,7 +125,7 @@ const waitForTabMetadata = (tabId: number, timeoutMs: number): Promise<void> => 
 const discardTabs = async (tabIds: number[]): Promise<void> => {
   // Wait for all tabs to have metadata loaded (with timeout)
   await Promise.all(
-    tabIds.map(tabId => waitForTabMetadata(tabId, TAB_LOAD_TIMEOUT_MS))
+    tabIds.map((tabId) => waitForTabMetadata(tabId, TAB_LOAD_TIMEOUT_MS)),
   )
 
   // Now discard all tabs
@@ -147,16 +163,17 @@ export const saveWorkspace = (workspaceName: string, state: AppState) =>
     const bookmarksBar = yield* getBookmarksBar
 
     // Create or find workspace folder
-    const workspaceFolder =
-      yield* Effect.async<chrome.bookmarks.BookmarkTreeNode>((resume) => {
-        chrome.bookmarks.create(
-          {
-            parentId: bookmarksBar.id,
-            title: workspaceName,
-          },
-          (folder) => resume(Effect.succeed(folder)),
-        )
-      })
+    const workspaceFolder = yield* Effect.async<
+      chrome.bookmarks.BookmarkTreeNode
+    >((resume) => {
+      chrome.bookmarks.create(
+        {
+          parentId: bookmarksBar.id,
+          title: workspaceName,
+        },
+        (folder) => resume(Effect.succeed(folder)),
+      )
+    })
 
     // Get current window tabs and groups
     const currentWindow = state.windows.find((w) => w.focused)
@@ -168,7 +185,7 @@ export const saveWorkspace = (workspaceName: string, state: AppState) =>
       (tab) => tab.windowId === currentWindow.id,
     )
     const windowGroups = state.tabGroups.filter((group) =>
-      windowTabs.some((tab) => optionContains(tab.groupId, group.id)),
+      windowTabs.some((tab) => optionContains(tab.groupId, group.id))
     )
 
     // Separate pinned and unpinned tabs
@@ -177,16 +194,17 @@ export const saveWorkspace = (workspaceName: string, state: AppState) =>
 
     // Create [pinned] folder if there are pinned tabs
     if (pinnedTabs.length > 0) {
-      const pinnedFolder =
-        yield* Effect.async<chrome.bookmarks.BookmarkTreeNode>((resume) => {
-          chrome.bookmarks.create(
-            {
-              parentId: workspaceFolder.id,
-              title: PINNED_FOLDER_NAME,
-            },
-            (folder) => resume(Effect.succeed(folder)),
-          )
-        })
+      const pinnedFolder = yield* Effect.async<
+        chrome.bookmarks.BookmarkTreeNode
+      >((resume) => {
+        chrome.bookmarks.create(
+          {
+            parentId: workspaceFolder.id,
+            title: PINNED_FOLDER_NAME,
+          },
+          (folder) => resume(Effect.succeed(folder)),
+        )
+      })
 
       // Add pinned tabs to the [pinned] folder
       for (const pinnedTab of pinnedTabs) {
@@ -222,22 +240,23 @@ export const saveWorkspace = (workspaceName: string, state: AppState) =>
             )
 
             // Create folder for group with metadata
-            const groupFolder =
-              yield* Effect.async<chrome.bookmarks.BookmarkTreeNode>(
-                (resume) => {
-                  chrome.bookmarks.create(
-                    {
-                      parentId: workspaceFolder.id,
-                      title: createGroupTitle(
-                        getOrElse(group.title, ""),
-                        group.color,
-                        group.collapsed,
-                      ),
-                    },
-                    (folder) => resume(Effect.succeed(folder)),
-                  )
-                },
-              )
+            const groupFolder = yield* Effect.async<
+              chrome.bookmarks.BookmarkTreeNode
+            >(
+              (resume) => {
+                chrome.bookmarks.create(
+                  {
+                    parentId: workspaceFolder.id,
+                    title: createGroupTitle(
+                      getOrElse(group.title, ""),
+                      group.color,
+                      group.collapsed,
+                    ),
+                  },
+                  (folder) => resume(Effect.succeed(folder)),
+                )
+              },
+            )
 
             // Add tabs to group folder
             for (const groupTab of groupTabs) {
@@ -287,8 +306,9 @@ const syncWorkspaceInternal = (windowId: number, workspaceId: string) =>
     // Get workspace bookmark
     const results = yield* Effect.async<chrome.bookmarks.BookmarkTreeNode[]>(
       (resume) => {
-        chrome.bookmarks.getSubTree(workspaceId, (results) =>
-          resume(Effect.succeed(results)),
+        chrome.bookmarks.getSubTree(
+          workspaceId,
+          (results) => resume(Effect.succeed(results)),
         )
       },
     )
@@ -306,8 +326,9 @@ const syncWorkspaceInternal = (windowId: number, workspaceId: string) =>
       // Delete all children sequentially to avoid race conditions
       for (const childId of childIds) {
         yield* Effect.async<void>((resume) => {
-          chrome.bookmarks.removeTree(childId, () =>
-            resume(Effect.succeed(undefined)),
+          chrome.bookmarks.removeTree(
+            childId,
+            () => resume(Effect.succeed(undefined)),
           )
         })
       }
@@ -318,7 +339,7 @@ const syncWorkspaceInternal = (windowId: number, workspaceId: string) =>
       (tab) => tab.windowId === windowId,
     )
     const windowGroups = state.tabGroups.filter((group) =>
-      windowTabs.some((tab) => optionContains(tab.groupId, group.id)),
+      windowTabs.some((tab) => optionContains(tab.groupId, group.id))
     )
 
     // Separate pinned and unpinned tabs
@@ -327,16 +348,17 @@ const syncWorkspaceInternal = (windowId: number, workspaceId: string) =>
 
     // Create [pinned] folder if there are pinned tabs
     if (pinnedTabs.length > 0) {
-      const pinnedFolder =
-        yield* Effect.async<chrome.bookmarks.BookmarkTreeNode>((resume) => {
-          chrome.bookmarks.create(
-            {
-              parentId: workspaceId,
-              title: PINNED_FOLDER_NAME,
-            },
-            (folder) => resume(Effect.succeed(folder)),
-          )
-        })
+      const pinnedFolder = yield* Effect.async<
+        chrome.bookmarks.BookmarkTreeNode
+      >((resume) => {
+        chrome.bookmarks.create(
+          {
+            parentId: workspaceId,
+            title: PINNED_FOLDER_NAME,
+          },
+          (folder) => resume(Effect.succeed(folder)),
+        )
+      })
 
       // Add pinned tabs to the [pinned] folder
       for (const pinnedTab of pinnedTabs) {
@@ -372,22 +394,23 @@ const syncWorkspaceInternal = (windowId: number, workspaceId: string) =>
             )
 
             // Create folder for group with metadata
-            const groupFolder =
-              yield* Effect.async<chrome.bookmarks.BookmarkTreeNode>(
-                (resume) => {
-                  chrome.bookmarks.create(
-                    {
-                      parentId: workspaceId,
-                      title: createGroupTitle(
-                        getOrElse(group.title, ""),
-                        group.color,
-                        group.collapsed,
-                      ),
-                    },
-                    (folder) => resume(Effect.succeed(folder)),
-                  )
-                },
-              )
+            const groupFolder = yield* Effect.async<
+              chrome.bookmarks.BookmarkTreeNode
+            >(
+              (resume) => {
+                chrome.bookmarks.create(
+                  {
+                    parentId: workspaceId,
+                    title: createGroupTitle(
+                      getOrElse(group.title, ""),
+                      group.color,
+                      group.collapsed,
+                    ),
+                  },
+                  (folder) => resume(Effect.succeed(folder)),
+                )
+              },
+            )
 
             // Add tabs to group folder
             for (const groupTab of groupTabs) {
@@ -428,7 +451,10 @@ const syncWorkspaceInternal = (windowId: number, workspaceId: string) =>
  * Sync workspace with current window state
  * Uses debouncing to prevent multiple concurrent syncs
  */
-export const syncWorkspace = (windowId: number, workspaceId: string): Promise<void> => {
+export const syncWorkspace = (
+  windowId: number,
+  workspaceId: string,
+): Promise<void> => {
   const state = getSyncState(workspaceId)
 
   // Clear any existing timeout
@@ -474,7 +500,7 @@ export const syncWorkspace = (windowId: number, workspaceId: string): Promise<vo
 export const loadWorkspaceInWindow = (
   workspaceId: string,
   windowId: number,
-  keepCurrentTabs: boolean = false
+  keepCurrentTabs: boolean = false,
 ) =>
   Effect.gen(function* () {
     // Set flag to prevent sync during loading
@@ -488,8 +514,7 @@ export const loadWorkspaceInWindow = (
       const results = yield* Effect.async<chrome.bookmarks.BookmarkTreeNode[]>(
         (resume) => {
           chrome.bookmarks.getSubTree(workspaceId, (results) =>
-            resume(Effect.succeed(results)),
-          )
+            resume(Effect.succeed(results)))
         },
       )
 
@@ -501,7 +526,8 @@ export const loadWorkspaceInWindow = (
 
       // Get current tabs in the window BEFORE loading new ones
       const currentTabs = yield* Effect.async<chrome.tabs.Tab[]>((resume) => {
-        chrome.tabs.query({ windowId }, (tabs) => resume(Effect.succeed(tabs)))
+        chrome.tabs.query({ windowId }, (tabs) =>
+          resume(Effect.succeed(tabs)))
       })
 
       // Collect ALL tab IDs (both pinned and unpinned) to be removed later
@@ -556,7 +582,9 @@ export const loadWorkspaceInWindow = (
       }
 
       // Phase 1: Create all tabs in batches (NO discard yet)
-      const createdTabs: Array<{ id: number; groupInfo?: TabJob['groupInfo'] }> = []
+      const createdTabs: Array<
+        { id: number; groupInfo?: TabJob["groupInfo"] }
+      > = []
       let currentIndex = insertIndex
 
       for (let i = 0; i < tabJobs.length; i += BATCH_SIZE) {
@@ -597,7 +625,8 @@ export const loadWorkspaceInWindow = (
 
       for (const { id, groupInfo } of createdTabs) {
         if (groupInfo) {
-          const groupKey = `${groupInfo.title}|${groupInfo.color}|${groupInfo.collapsed}`
+          const groupKey =
+            `${groupInfo.title}|${groupInfo.color}|${groupInfo.collapsed}`
           if (!groupMap.has(groupKey)) {
             groupMap.set(groupKey, [])
           }
@@ -608,12 +637,11 @@ export const loadWorkspaceInWindow = (
       // Create and configure groups
       for (const [groupKey, tabIds] of groupMap.entries()) {
         if (tabIds.length > 0) {
-          const [title, color, collapsed] = groupKey.split('|')
+          const [title, color, collapsed] = groupKey.split("|")
 
           const groupId = yield* Effect.async<number>((resume) => {
             chrome.tabs.group({ tabIds }, (groupId) =>
-              resume(Effect.succeed(groupId)),
-            )
+              resume(Effect.succeed(groupId)))
           })
 
           yield* Effect.async<chrome.tabGroups.TabGroup>((resume) => {
@@ -622,23 +650,26 @@ export const loadWorkspaceInWindow = (
               {
                 title: title || undefined,
                 color: color as chrome.tabGroups.ColorEnum,
-                collapsed: collapsed === 'true',
+                collapsed: collapsed === "true",
               },
-              (group) => resume(Effect.succeed(group)),
+              (group) =>
+                resume(Effect.succeed(group)),
             )
           })
         }
       }
 
       // Phase 3: Now discard ALL tabs at once
-      const allTabIds = createdTabs.map(t => t.id)
+      const allTabIds = createdTabs.map((t) =>
+        t.id
+      )
       if (allTabIds.length > 0) {
         // Use Promise wrapper for async discard
         yield* Effect.async<void>((resume) => {
           discardTabs(allTabIds)
             .then(() => resume(Effect.succeed(undefined)))
             .catch((error) => {
-              console.error('Failed to discard tabs:', error)
+              console.error("Failed to discard tabs:", error)
               resume(Effect.succeed(undefined)) // Continue even if discard fails
             })
         })
@@ -650,14 +681,15 @@ export const loadWorkspaceInWindow = (
       // By creating new tabs first, we ensure the window always has at least one tab
       if (!keepCurrentTabs && oldTabIds.length > 0) {
         yield* Effect.async<void>((resume) => {
-          chrome.tabs.remove(oldTabIds, () =>
-            resume(Effect.succeed(undefined)),
-          )
+          chrome.tabs.remove(oldTabIds, () => resume(Effect.succeed(undefined)))
         })
       }
 
       // Now link the window to the new workspace
-      yield* linkWindowToWorkspace(windowId as WindowId, workspaceId as WorkspaceId)
+      yield* linkWindowToWorkspace(
+        windowId as WindowId,
+        workspaceId as WorkspaceId,
+      )
     } finally {
       // Reset flag after loading is complete
       setIsLoadingWorkspace(false)
@@ -672,8 +704,9 @@ export const restoreWorkspace = (workspaceId: string) =>
     // Get workspace folder
     const results = yield* Effect.async<chrome.bookmarks.BookmarkTreeNode[]>(
       (resume) => {
-        chrome.bookmarks.getSubTree(workspaceId, (results) =>
-          resume(Effect.succeed(results)),
+        chrome.bookmarks.getSubTree(
+          workspaceId,
+          (results) => resume(Effect.succeed(results)),
         )
       },
     )
@@ -698,14 +731,18 @@ export const restoreWorkspace = (workspaceId: string) =>
     }
 
     // Link window to workspace
-    yield* linkWindowToWorkspace(windowId as WindowId, workspaceId as WorkspaceId)
+    yield* linkWindowToWorkspace(
+      windowId as WindowId,
+      workspaceId as WorkspaceId,
+    )
 
     // Close the default new tab
     const firstTab = newWindow.tabs?.[0]
     if (firstTab?.id) {
       yield* Effect.async<void>((resume) => {
-        chrome.tabs.remove(firstTab.id!, () =>
-          resume(Effect.succeed(undefined)),
+        chrome.tabs.remove(
+          firstTab.id!,
+          () => resume(Effect.succeed(undefined)),
         )
       })
     }
@@ -750,7 +787,8 @@ export const restoreWorkspace = (workspaceId: string) =>
     }
 
     // Phase 1: Create all tabs in batches (NO discard yet)
-    const createdTabs: Array<{ id: number; groupInfo?: TabJob['groupInfo'] }> = []
+    const createdTabs: Array<{ id: number; groupInfo?: TabJob["groupInfo"] }> =
+      []
 
     for (let i = 0; i < tabJobs.length; i += BATCH_SIZE) {
       const batch = tabJobs.slice(i, i + BATCH_SIZE)
@@ -788,7 +826,8 @@ export const restoreWorkspace = (workspaceId: string) =>
 
     for (const { id, groupInfo } of createdTabs) {
       if (groupInfo) {
-        const groupKey = `${groupInfo.title}|${groupInfo.color}|${groupInfo.collapsed}`
+        const groupKey =
+          `${groupInfo.title}|${groupInfo.color}|${groupInfo.collapsed}`
         if (!groupMap.has(groupKey)) {
           groupMap.set(groupKey, [])
         }
@@ -799,11 +838,12 @@ export const restoreWorkspace = (workspaceId: string) =>
     // Create and configure groups
     for (const [groupKey, tabIds] of groupMap.entries()) {
       if (tabIds.length > 0) {
-        const [title, color, collapsed] = groupKey.split('|')
+        const [title, color, collapsed] = groupKey.split("|")
 
         const groupId = yield* Effect.async<number>((resume) => {
-          chrome.tabs.group({ tabIds }, (groupId) =>
-            resume(Effect.succeed(groupId)),
+          chrome.tabs.group(
+            { tabIds },
+            (groupId) => resume(Effect.succeed(groupId)),
           )
         })
 
@@ -813,7 +853,7 @@ export const restoreWorkspace = (workspaceId: string) =>
             {
               title: title || undefined,
               color: color as chrome.tabGroups.ColorEnum,
-              collapsed: collapsed === 'true',
+              collapsed: collapsed === "true",
             },
             (group) => resume(Effect.succeed(group)),
           )
@@ -822,14 +862,14 @@ export const restoreWorkspace = (workspaceId: string) =>
     }
 
     // Phase 3: Now discard ALL tabs at once
-    const allTabIds = createdTabs.map(t => t.id)
+    const allTabIds = createdTabs.map((t) => t.id)
     if (allTabIds.length > 0) {
       // Use Promise wrapper for async discard
       yield* Effect.async<void>((resume) => {
         discardTabs(allTabIds)
           .then(() => resume(Effect.succeed(undefined)))
           .catch((error) => {
-            console.error('Failed to discard tabs:', error)
+            console.error("Failed to discard tabs:", error)
             resume(Effect.succeed(undefined)) // Continue even if discard fails
           })
       })
@@ -843,8 +883,9 @@ export const restoreWorkspace = (workspaceId: string) =>
  */
 export const deleteWorkspace = (workspaceId: string) =>
   Effect.async<void>((resume) => {
-    chrome.bookmarks.removeTree(workspaceId, () =>
-      resume(Effect.succeed(undefined)),
+    chrome.bookmarks.removeTree(
+      workspaceId,
+      () => resume(Effect.succeed(undefined)),
     )
   })
 
@@ -853,8 +894,10 @@ export const deleteWorkspace = (workspaceId: string) =>
  */
 export const renameWorkspace = (workspaceId: string, newName: string) =>
   Effect.async<chrome.bookmarks.BookmarkTreeNode>((resume) => {
-    chrome.bookmarks.update(workspaceId, { title: newName }, (result) =>
-      resume(Effect.succeed(result)),
+    chrome.bookmarks.update(
+      workspaceId,
+      { title: newName },
+      (result) => resume(Effect.succeed(result)),
     )
   })
 
@@ -951,7 +994,11 @@ export const renameTabBookmark = (
       chrome.bookmarks.update(bookmarkId, { title: bookmarkTitle }, () => {
         const error = chrome.runtime.lastError
         if (error) {
-          resume(Effect.fail(new Error(`Failed to rename bookmark: ${error.message}`)))
+          resume(
+            Effect.fail(
+              new Error(`Failed to rename bookmark: ${error.message}`),
+            ),
+          )
           return
         }
         resume(Effect.succeed(undefined))
@@ -961,9 +1008,9 @@ export const renameTabBookmark = (
 
 // Re-export utilities
 export {
-  parseGroupMetadata,
-  createGroupTitle,
-  VALID_GROUP_COLORS,
-  parseBookmarkPinnedStatus,
   createBookmarkTitle,
+  createGroupTitle,
+  parseBookmarkPinnedStatus,
+  parseGroupMetadata,
+  VALID_GROUP_COLORS,
 }

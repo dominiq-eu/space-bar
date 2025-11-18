@@ -3,8 +3,8 @@ import { getWindows } from "../windows-service/index.ts"
 import { getTabGroups } from "../tabs-service/index.ts"
 import { mapChromeTabs } from "../tabs-service/mappers.ts"
 import {
-  STORAGE_KEY_WINDOW_WORKSPACE_MAP,
   getWorkspaceForWindow,
+  STORAGE_KEY_WINDOW_WORKSPACE_MAP,
 } from "../storage-service/index.ts"
 import { getBookmarkTitlesForWorkspace } from "../workspaces-service/bookmark-title-lookup.ts"
 import type { WindowId, WorkspaceId } from "./types.ts"
@@ -50,8 +50,8 @@ const getTabsWithBookmarkTitles = (): Effect.Effect<
 export const createAppState = () =>
   Effect.gen(function* () {
     // Load all data in parallel
-    const [chromeTabs, tabGroups, windows, windowWorkspaceMap] =
-      yield* Effect.all([
+    const [chromeTabs, tabGroups, windows, windowWorkspaceMap] = yield* Effect
+      .all([
         getTabsWithBookmarkTitles(),
         getTabGroups(),
         getWindows(),
@@ -100,4 +100,4 @@ export const createAppState = () =>
   })
 
 // Re-export types for convenience
-export type { Tab, TabGroup, Window, AppState } from "./types.ts"
+export type { AppState, Tab, TabGroup, Window } from "./types.ts"

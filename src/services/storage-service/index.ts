@@ -36,9 +36,11 @@ export const linkWindowToWorkspace = (
 
       // Remove any existing link to this workspace from other windows
       // (a workspace can only be linked to one window at a time)
-      for (const [existingWindowId, existingWorkspaceId] of Object.entries(
-        map,
-      )) {
+      for (
+        const [existingWindowId, existingWorkspaceId] of Object.entries(
+          map,
+        )
+      ) {
         if (
           existingWorkspaceId === workspaceId &&
           existingWindowId !== String(windowId)
@@ -144,7 +146,9 @@ export const getWorkspaceForWindow = (
 
         resume(
           Effect.succeed(
-            workspaceId ? Option.some(workspaceId as WorkspaceId) : Option.none(),
+            workspaceId
+              ? Option.some(workspaceId as WorkspaceId)
+              : Option.none(),
           ),
         )
       })
@@ -198,9 +202,7 @@ export const cleanupWindowWorkspaceMap = (
     // Get all currently open windows
     const windows = yield* Effect.async<chrome.windows.Window[], never>(
       (resume) => {
-        chrome.windows.getAll({}, (windows) =>
-          resume(Effect.succeed(windows)),
-        )
+        chrome.windows.getAll({}, (windows) => resume(Effect.succeed(windows)))
       },
     )
     const openWindowIds = new Set(windows.map((w) => String(w.id)))

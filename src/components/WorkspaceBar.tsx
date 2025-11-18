@@ -1,13 +1,20 @@
-import { useState, useEffect } from "preact/hooks"
+import { useEffect, useState } from "preact/hooks"
 import { Effect } from "effect"
-import type { AppState, WindowId, WorkspaceId } from "../services/state-service/types.ts"
+import type {
+  AppState,
+  WindowId,
+  WorkspaceId,
+} from "../services/state-service/types.ts"
 import {
   getBookmarksBar,
-  saveWorkspace,
   loadWorkspaceInWindow,
   restoreWorkspace,
+  saveWorkspace,
 } from "../services/workspaces-service/index.ts"
-import { linkWindowToWorkspace, unlinkWindow } from "../services/storage-service/index.ts"
+import {
+  linkWindowToWorkspace,
+  unlinkWindow,
+} from "../services/storage-service/index.ts"
 
 export interface WorkspaceBarProps {
   currentWindowId: number | null
@@ -23,21 +30,27 @@ export function WorkspaceBar({
   const [workspaces, setWorkspaces] = useState<
     chrome.bookmarks.BookmarkTreeNode[]
   >([])
-  const [contextMenu, setContextMenu] = useState<{
-    workspaceId: string
-    x: number
-    y: number
-  } | null>(null)
-  const [workspaceDialog, setWorkspaceDialog] = useState<{
-    mode: "create" | "rename"
-    workspaceId?: string
-    currentName: string
-  } | null>(null)
+  const [contextMenu, setContextMenu] = useState<
+    {
+      workspaceId: string
+      x: number
+      y: number
+    } | null
+  >(null)
+  const [workspaceDialog, setWorkspaceDialog] = useState<
+    {
+      mode: "create" | "rename"
+      workspaceId?: string
+      currentName: string
+    } | null
+  >(null)
   const [workspaceName, setWorkspaceName] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [takeoverDialog, setTakeoverDialog] = useState<{
-    workspaceId: string
-  } | null>(null)
+  const [takeoverDialog, setTakeoverDialog] = useState<
+    {
+      workspaceId: string
+    } | null
+  >(null)
 
   const loadWorkspaces = () => {
     Effect.runPromise(getBookmarksBar).then((bookmarksBar) => {
@@ -100,7 +113,9 @@ export function WorkspaceBar({
     }
 
     setIsLoading(true)
-    Effect.runPromise(loadWorkspaceInWindow(workspaceId, currentWindowId, false))
+    Effect.runPromise(
+      loadWorkspaceInWindow(workspaceId, currentWindowId, false),
+    )
       .then(() => {
         setIsLoading(false)
       })
@@ -115,7 +130,11 @@ export function WorkspaceBar({
 
     setIsLoading(true)
     Effect.runPromise(
-      loadWorkspaceInWindow(takeoverDialog.workspaceId, currentWindowId, keepTabs)
+      loadWorkspaceInWindow(
+        takeoverDialog.workspaceId,
+        currentWindowId,
+        keepTabs,
+      ),
     )
       .then(() => {
         setIsLoading(false)
@@ -184,11 +203,15 @@ export function WorkspaceBar({
 
       // Check if another workspace with the same name already exists
       const duplicateName = workspaces.some(
-        (w) => w.id !== workspaceDialog.workspaceId && w.title === workspaceName.trim(),
+        (w) =>
+          w.id !== workspaceDialog.workspaceId &&
+          w.title === workspaceName.trim(),
       )
 
       if (duplicateName) {
-        alert("A workspace with this name already exists. Please choose a different name.")
+        alert(
+          "A workspace with this name already exists. Please choose a different name.",
+        )
         return
       }
 
@@ -211,7 +234,9 @@ export function WorkspaceBar({
       )
 
       if (duplicateName) {
-        alert("A workspace with this name already exists. Please choose a different name.")
+        alert(
+          "A workspace with this name already exists. Please choose a different name.",
+        )
         return
       }
 
@@ -224,7 +249,10 @@ export function WorkspaceBar({
           // Automatically link the new workspace to the current window
           if (workspaceFolder.id && currentWindowId !== null) {
             Effect.runPromise(
-              linkWindowToWorkspace(currentWindowId as WindowId, workspaceFolder.id as WorkspaceId)
+              linkWindowToWorkspace(
+                currentWindowId as WindowId,
+                workspaceFolder.id as WorkspaceId,
+              ),
             ).catch((error) => {
               console.error("Failed to link workspace:", error)
             })
@@ -279,7 +307,9 @@ export function WorkspaceBar({
               : "bg-gray-300 text-gray-700 hover:bg-gray-400"
           }`}
           onClick={handleUnlinkWorkspace}
-          title={!linkedWorkspaceId ? "Unlinked workspace" : "Unlink from workspace"}
+          title={!linkedWorkspaceId
+            ? "Unlinked workspace"
+            : "Unlink from workspace"}
         >
           ☰
         </button>
@@ -353,7 +383,9 @@ export function WorkspaceBar({
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div class="bg-white p-4 rounded shadow-lg max-w-sm w-full mx-4">
             <h3 class="font-bold mb-3 text-sm">
-              {workspaceDialog.mode === "create" ? "Create Workspace" : "Rename Workspace"}
+              {workspaceDialog.mode === "create"
+                ? "Create Workspace"
+                : "Rename Workspace"}
             </h3>
             <input
               type="text"
@@ -391,7 +423,8 @@ export function WorkspaceBar({
           <div class="bg-white p-4 rounded shadow-lg max-w-sm w-full mx-4">
             <h3 class="font-bold mb-3 text-sm">Switch to Workspace</h3>
             <p class="text-xs text-gray-600 mb-4">
-              Would you like to keep the current tabs when switching to this workspace?
+              Would you like to keep the current tabs when switching to this
+              workspace?
             </p>
             <div class="flex gap-2">
               <button
@@ -423,8 +456,11 @@ export function WorkspaceBar({
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div class="bg-white p-6 rounded shadow-lg">
             <div class="flex flex-col items-center gap-3">
-              <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-              <p class="text-sm font-medium text-gray-700">Loading workspace...</p>
+              <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500">
+              </div>
+              <p class="text-sm font-medium text-gray-700">
+                Loading workspace...
+              </p>
             </div>
           </div>
         </div>

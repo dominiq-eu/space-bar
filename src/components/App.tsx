@@ -1,24 +1,34 @@
-import { useState, useEffect } from "preact/hooks"
-import { Effect, Option } from "effect"
-import type { Tab, TabGroup, AppState, WindowId, WorkspaceId } from "../services/state-service/types.ts"
+import { useEffect, useState } from "preact/hooks"
+import { Data, Effect } from "effect"
+import type {
+  AppState,
+  Tab,
+  TabGroup,
+  WindowId,
+  WorkspaceId,
+} from "../services/state-service/types.ts"
 import type { DragData } from "./types.ts"
 import { createAppState } from "../services/state-service/index.ts"
 import {
-  linkWindowToWorkspace,
-  unlinkWindow,
-  getWorkspaceForWindow,
   cleanupWindowWorkspaceMap,
+  getWorkspaceForWindow,
+  linkWindowToWorkspace,
   STORAGE_KEY_WINDOW_WORKSPACE_MAP,
+  unlinkWindow,
 } from "../services/storage-service/index.ts"
 import {
-  syncWorkspace,
   getBookmarksBar,
   getIsLoadingWorkspace,
+  syncWorkspace,
 } from "../services/workspaces-service/index.ts"
 import { WindowSection } from "./WindowSection.tsx"
 import { LinkWorkspaceDialog } from "./LinkWorkspaceDialog.tsx"
 import { WorkspaceBar } from "./WorkspaceBar.tsx"
-import { optionToUndefined, optionContains, isSome } from "../utils/type-conversions.ts"
+import {
+  isSome,
+  optionContains,
+  optionToUndefined,
+} from "../utils/type-conversions.ts"
 
 export function App() {
   const [state, setState] = useState<AppState | null>(null)
@@ -95,7 +105,9 @@ export function App() {
   }
 
   const handleConfirmLink = (windowId: number, workspaceId: string) => {
-    Effect.runPromise(linkWindowToWorkspace(windowId as WindowId, workspaceId as WorkspaceId))
+    Effect.runPromise(
+      linkWindowToWorkspace(windowId as WindowId, workspaceId as WorkspaceId),
+    )
       .then(() => {
         loadWindowWorkspaceMap()
         setShowLinkDialog(null)
@@ -207,25 +219,27 @@ export function App() {
 
     getWindowId().then((wId) => {
       if (wId !== undefined) {
-        Effect.runPromise(getWorkspaceForWindow(wId as WindowId)).then((workspaceIdOption) => {
-          if (isSome(workspaceIdOption)) {
-            const workspaceId = workspaceIdOption.value
-            syncWorkspace(wId, workspaceId).catch(
-              (error) => {
+        Effect.runPromise(getWorkspaceForWindow(wId as WindowId)).then(
+          (workspaceIdOption) => {
+            if (isSome(workspaceIdOption)) {
+              const workspaceId = workspaceIdOption.value
+              syncWorkspace(wId, workspaceId).catch((error) => {
                 console.error("Failed to sync workspace:", error)
-              },
-            )
-          }
-        })
+              })
+            }
+          },
+        )
       }
     })
   }
 
   useEffect(() => {
     // Cleanup window-workspace mappings for closed windows
-    Effect.runPromise(cleanupWindowWorkspaceMap(getBookmarksBar)).catch((error) => {
-      console.error("Failed to cleanup window-workspace map:", error)
-    })
+    Effect.runPromise(cleanupWindowWorkspaceMap(getBookmarksBar)).catch(
+      (error) => {
+        console.error("Failed to cleanup window-workspace map:", error)
+      },
+    )
 
     // Initial load
     loadState()
@@ -373,7 +387,9 @@ export function App() {
   // Group tab groups by window (based on tabs)
   const tabGroupsByWindow = new Map<number, TabGroup[]>()
   state.tabGroups.forEach((group) => {
-    const groupTab = state.tabs.find((tab) => optionContains(tab.groupId, group.id))
+    const groupTab = state.tabs.find((tab) =>
+      optionContains(tab.groupId, group.id)
+    )
     if (groupTab?.windowId !== undefined) {
       if (!tabGroupsByWindow.has(groupTab.windowId)) {
         tabGroupsByWindow.set(groupTab.windowId, [])
@@ -427,17 +443,16 @@ export function App() {
             tabGroups={tabGroupsByWindow.get(currentWindow.id!) || []}
             currentWindowId={currentWindowId || undefined}
             currentWindowTabGroups={currentWindowTabGroups}
-            linkedWorkspaceName={
-              currentWindow.id && windowWorkspaceMap[currentWindow.id]
-                ? workspaceNames[windowWorkspaceMap[currentWindow.id]]
-                : undefined
-            }
+            linkedWorkspaceName={currentWindow.id &&
+                windowWorkspaceMap[currentWindow.id]
+              ? workspaceNames[windowWorkspaceMap[currentWindow.id]]
+              : undefined}
             onLinkWorkspace={handleLinkWorkspace}
             onDragStart={handleDragStart}
             onDropOnGroup={handleDropOnGroup}
             onDropOnWindow={handleDropOnWindow}
             draggedTab={draggedTab}
-            isCurrentWindow={true}
+            isCurrentWindow
           />
         )}
         {otherWindows.length > 0 && (
@@ -453,11 +468,9 @@ export function App() {
                 tabGroups={tabGroupsByWindow.get(window.id!) || []}
                 currentWindowId={currentWindowId || undefined}
                 currentWindowTabGroups={currentWindowTabGroups}
-                linkedWorkspaceName={
-                  window.id && windowWorkspaceMap[window.id]
-                    ? workspaceNames[windowWorkspaceMap[window.id]]
-                    : undefined
-                }
+                linkedWorkspaceName={window.id && windowWorkspaceMap[window.id]
+                  ? workspaceNames[windowWorkspaceMap[window.id]]
+                  : undefined}
                 onLinkWorkspace={handleLinkWorkspace}
                 onDragStart={handleDragStart}
                 onDropOnGroup={handleDropOnGroup}
@@ -465,8 +478,7 @@ export function App() {
                 draggedTab={draggedTab}
                 collapsed={collapsedWindows.has(window.id!)}
                 onToggleCollapsed={() =>
-                  window.id && handleToggleWindow(window.id)
-                }
+                  window.id && handleToggleWindow(window.id)}
               />
             ))}
           </>
@@ -474,9 +486,9 @@ export function App() {
       </div>
       <WorkspaceBar
         currentWindowId={currentWindowId}
-        linkedWorkspaceId={
-          currentWindowId ? windowWorkspaceMap[currentWindowId] : undefined
-        }
+        linkedWorkspaceId={currentWindowId
+          ? windowWorkspaceMap[currentWindowId]
+          : undefined}
         state={state}
       />
     </>

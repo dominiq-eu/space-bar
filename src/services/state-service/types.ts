@@ -1,4 +1,4 @@
-import { Schema, Option } from "effect"
+import { Option, Schema } from "effect"
 
 // ============================================================================
 // Branded ID Types
@@ -10,7 +10,7 @@ import { Schema, Option } from "effect"
 export const TabId = Schema.Number.pipe(
   Schema.int(),
   Schema.positive(),
-  Schema.brand("TabId")
+  Schema.brand("TabId"),
 )
 export type TabId = Schema.Schema.Type<typeof TabId>
 
@@ -20,7 +20,7 @@ export type TabId = Schema.Schema.Type<typeof TabId>
 export const WindowId = Schema.Number.pipe(
   Schema.int(),
   Schema.positive(),
-  Schema.brand("WindowId")
+  Schema.brand("WindowId"),
 )
 export type WindowId = Schema.Schema.Type<typeof WindowId>
 
@@ -30,7 +30,7 @@ export type WindowId = Schema.Schema.Type<typeof WindowId>
 export const GroupId = Schema.Number.pipe(
   Schema.int(),
   Schema.positive(),
-  Schema.brand("GroupId")
+  Schema.brand("GroupId"),
 )
 export type GroupId = Schema.Schema.Type<typeof GroupId>
 
@@ -39,7 +39,7 @@ export type GroupId = Schema.Schema.Type<typeof GroupId>
  */
 export const WorkspaceId = Schema.String.pipe(
   Schema.minLength(1),
-  Schema.brand("WorkspaceId")
+  Schema.brand("WorkspaceId"),
 )
 export type WorkspaceId = Schema.Schema.Type<typeof WorkspaceId>
 
@@ -59,7 +59,7 @@ export const TabGroupColor = Schema.Literal(
   "pink",
   "purple",
   "cyan",
-  "orange"
+  "orange",
 )
 export type TabGroupColor = Schema.Schema.Type<typeof TabGroupColor>
 
@@ -75,7 +75,7 @@ export const WindowType = Schema.Literal(
   "popup",
   "panel",
   "app",
-  "devtools"
+  "devtools",
 )
 export type WindowType = Schema.Schema.Type<typeof WindowType>
 

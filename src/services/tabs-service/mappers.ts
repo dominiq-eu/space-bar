@@ -1,16 +1,16 @@
-import { Schema, Effect, Option, pipe, ParseResult } from "effect"
+import { Effect, Option, ParseResult, pipe, Schema } from "effect"
 import {
+  GroupId,
   Tab,
+  TabChanges,
   TabGroup,
+  TabGroupColor,
   TabId,
   WindowId,
-  GroupId,
-  TabGroupColor,
-  TabChanges,
 } from "../state-service/types.ts"
 import {
-  InvalidTabDataError,
   InvalidGroupDataError,
+  InvalidTabDataError,
   InvalidTabUrlError,
 } from "./errors.ts"
 
@@ -45,7 +45,7 @@ function isBrowserUrl(url: string): boolean {
  * This wrapper also accepts browser-specific URLs like chrome://, about:, etc.
  */
 function parseTabUrl(
-  urlString: string
+  urlString: string,
 ): Effect.Effect<URL, InvalidTabUrlError> {
   // Empty URL -> use about:blank
   if (!urlString || urlString.trim() === "") {
@@ -67,7 +67,9 @@ function parseTabUrl(
       return Effect.succeed(new URL(urlString))
     } catch {
       // If even that fails, fall back to about:blank with the original as hash
-      return Effect.succeed(new URL(`about:blank#${encodeURIComponent(urlString)}`))
+      return Effect.succeed(
+        new URL(`about:blank#${encodeURIComponent(urlString)}`),
+      )
     }
   }
 
@@ -76,7 +78,7 @@ function parseTabUrl(
     new InvalidTabUrlError({
       url: urlString,
       reason: `Not a valid HTTP(S) URL or browser URL: ${urlString}`,
-    })
+    }),
   )
 }
 
@@ -93,7 +95,7 @@ function parseTabUrl(
  */
 export function mapChromeTab(
   chromeTab: chrome.tabs.Tab,
-  bookmarkTitleMap?: Map<string, string>
+  bookmarkTitleMap?: Map<string, string>,
 ): Effect.Effect<Tab, InvalidTabDataError | InvalidTabUrlError> {
   return Effect.gen(function* () {
     // Validate required fields
@@ -102,7 +104,7 @@ export function mapChromeTab(
         new InvalidTabDataError({
           reason: "Missing required fields: id or windowId",
           data: chromeTab,
-        })
+        }),
       )
     }
 
@@ -112,9 +114,9 @@ export function mapChromeTab(
     // Parse favIconUrl if present
     const favIconUrl = chromeTab.favIconUrl
       ? yield* parseTabUrl(chromeTab.favIconUrl).pipe(
-          Effect.map(Option.some),
-          Effect.catchAll(() => Effect.succeed(Option.none()))
-        )
+        Effect.map(Option.some),
+        Effect.catchAll(() => Effect.succeed(Option.none())),
+      )
       : Option.none()
 
     // Resolve title: Bookmark title > Browser title
@@ -130,10 +132,9 @@ export function mapChromeTab(
       url,
       favIconUrl,
       active: chromeTab.active ?? false,
-      groupId:
-        chromeTab.groupId !== undefined && chromeTab.groupId !== -1
-          ? Option.some(chromeTab.groupId as GroupId)
-          : Option.none(),
+      groupId: chromeTab.groupId !== undefined && chromeTab.groupId !== -1
+        ? Option.some(chromeTab.groupId as GroupId)
+        : Option.none(),
       pinned: chromeTab.pinned ?? false,
     }
 
@@ -152,16 +153,16 @@ export function mapChromeTab(
  */
 export function mapChromeTabs(
   chromeTabs: chrome.tabs.Tab[],
-  bookmarkTitleMap?: Map<string, string>
+  bookmarkTitleMap?: Map<string, string>,
 ): Effect.Effect<Tab[]> {
   return Effect.gen(function* () {
     const results = yield* Effect.forEach(
       chromeTabs,
       (chromeTab) =>
         mapChromeTab(chromeTab, bookmarkTitleMap).pipe(
-          Effect.either // Convert to Either so we can filter
+          Effect.either, // Convert to Either so we can filter
         ),
-      { concurrency: "unbounded" }
+      { concurrency: "unbounded" },
     )
 
     // Filter out errors, keep only successful tabs
@@ -185,7 +186,7 @@ export function mapChromeTabs(
  * Returns Effect with typed errors
  */
 export function mapChromeTabGroup(
-  chromeGroup: chrome.tabGroups.TabGroup
+  chromeGroup: chrome.tabGroups.TabGroup,
 ): Effect.Effect<TabGroup, InvalidGroupDataError> {
   return Effect.gen(function* () {
     // Validate ID
@@ -194,17 +195,16 @@ export function mapChromeTabGroup(
         new InvalidGroupDataError({
           reason: "Missing required field: id",
           data: chromeGroup,
-        })
+        }),
       )
     }
 
     // Build TabGroup - no need to Schema.decode since we already have the right types
     const group: TabGroup = {
       id: chromeGroup.id as GroupId,
-      title:
-        chromeGroup.title && chromeGroup.title.trim() !== ""
-          ? Option.some(chromeGroup.title)
-          : Option.none(),
+      title: chromeGroup.title && chromeGroup.title.trim() !== ""
+        ? Option.some(chromeGroup.title)
+        : Option.none(),
       color: chromeGroup.color as typeof chromeGroup.color,
       collapsed: chromeGroup.collapsed,
     }
@@ -219,14 +219,13 @@ export function mapChromeTabGroup(
  * Filters out invalid groups (logs errors)
  */
 export function mapChromeTabGroups(
-  chromeGroups: chrome.tabGroups.TabGroup[]
+  chromeGroups: chrome.tabGroups.TabGroup[],
 ): Effect.Effect<TabGroup[]> {
   return Effect.gen(function* () {
     const results = yield* Effect.forEach(
       chromeGroups,
-      (chromeGroup) =>
-        mapChromeTabGroup(chromeGroup).pipe(Effect.either),
-      { concurrency: "unbounded" }
+      (chromeGroup) => mapChromeTabGroup(chromeGroup).pipe(Effect.either),
+      { concurrency: "unbounded" },
     )
 
     const validGroups: TabGroup[] = []
@@ -248,14 +247,14 @@ export function mapChromeTabGroups(
  * Only includes fields that actually changed
  */
 export function mapTabChangeInfo(
-  changeInfo: chrome.tabs.TabChangeInfo
+  changeInfo: chrome.tabs.TabChangeInfo,
 ): Effect.Effect<TabChanges> {
   return Effect.gen(function* () {
     const changes: TabChanges = {}
 
     if (changeInfo.url !== undefined) {
       const url = yield* parseTabUrl(changeInfo.url).pipe(
-        Effect.catchAll(() => Effect.succeed(new URL("about:blank")))
+        Effect.catchAll(() => Effect.succeed(new URL("about:blank"))),
       )
       changes.url = url
     }
@@ -267,7 +266,7 @@ export function mapTabChangeInfo(
     if (changeInfo.favIconUrl !== undefined) {
       const favIconUrl = yield* parseTabUrl(changeInfo.favIconUrl).pipe(
         Effect.map(Option.some),
-        Effect.catchAll(() => Effect.succeed(Option.none()))
+        Effect.catchAll(() => Effect.succeed(Option.none())),
       )
       changes.favIconUrl = favIconUrl
     }
@@ -277,10 +276,9 @@ export function mapTabChangeInfo(
     }
 
     if (changeInfo.groupId !== undefined) {
-      changes.groupId =
-        changeInfo.groupId !== -1
-          ? Option.some(changeInfo.groupId as GroupId)
-          : Option.none()
+      changes.groupId = changeInfo.groupId !== -1
+        ? Option.some(changeInfo.groupId as GroupId)
+        : Option.none()
     }
 
     return changes

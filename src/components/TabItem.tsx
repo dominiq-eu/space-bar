@@ -1,9 +1,17 @@
-import { useState, useEffect } from "preact/hooks"
-import { Option, Effect } from "effect"
-import type { Tab, TabGroup, WindowId } from "../services/state-service/types.ts"
+import { useEffect, useState } from "preact/hooks"
+import { Effect, Option } from "effect"
+import type {
+  Tab,
+  TabGroup,
+  WindowId,
+} from "../services/state-service/types.ts"
 import { VALID_GROUP_COLORS } from "../services/workspaces-service/metadata-parser.ts"
 import { renameTabBookmark } from "../services/workspaces-service/index.ts"
-import { urlToString, optionToUndefined, optionalUrlToString } from "../utils/type-conversions.ts"
+import {
+  optionalUrlToString,
+  optionToUndefined,
+  urlToString,
+} from "../utils/type-conversions.ts"
 
 export interface TabItemProps {
   tab: Tab
@@ -26,13 +34,17 @@ export function TabItem({
   onDrop,
   isDragging,
 }: TabItemProps) {
-  const [contextMenu, setContextMenu] = useState<{
-    x: number
-    y: number
-  } | null>(null)
-  const [renameDialog, setRenameDialog] = useState<{
-    currentTitle: string
-  } | null>(null)
+  const [contextMenu, setContextMenu] = useState<
+    {
+      x: number
+      y: number
+    } | null
+  >(null)
+  const [renameDialog, setRenameDialog] = useState<
+    {
+      currentTitle: string
+    } | null
+  >(null)
   const [newTitle, setNewTitle] = useState("")
 
   // Close context menu on outside click
@@ -76,7 +88,8 @@ export function TabItem({
             // Find existing group with same name and color in current window
             const matchingGroup = allTabGroups?.find(
               (g) =>
-                Option.getOrElse(g.title, () => "") === Option.getOrElse(tabGroup.title, () => "") &&
+                Option.getOrElse(g.title, () => "") ===
+                  Option.getOrElse(tabGroup.title, () => "") &&
                 g.color === tabGroup.color,
             )
 
@@ -89,9 +102,10 @@ export function TabItem({
             } else {
               // Create new group with same properties
               chrome.tabs.group({ tabIds: [newTab.id] }, (groupId) => {
-                const groupColor = VALID_GROUP_COLORS.includes(tabGroup.color as any)
-                  ? tabGroup.color
-                  : "grey"
+                const groupColor =
+                  VALID_GROUP_COLORS.includes(tabGroup.color as any)
+                    ? tabGroup.color
+                    : "grey"
 
                 chrome.tabGroups.update(groupId, {
                   title: optionToUndefined(tabGroup.title),
@@ -175,7 +189,12 @@ export function TabItem({
     const tabUrl = urlToString(tab.url)
 
     Effect.runPromise(
-      renameTabBookmark(currentWindowId as WindowId, tabUrl, newTitle.trim(), tab.pinned)
+      renameTabBookmark(
+        currentWindowId as WindowId,
+        tabUrl,
+        newTitle.trim(),
+        tab.pinned,
+      ),
     )
       .then(() => {
         setRenameDialog(null)
@@ -247,15 +266,15 @@ export function TabItem({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onContextMenu={handleContextMenu}
-        class={`group font-mono text-xs overflow-hidden flex items-center gap-2 cursor-pointer hover:bg-gray-200 px-1 py-0.5 rounded transition-colors ${isDragging ? "opacity-50" : ""} ${tab.active ? "bg-gray-300 bg-opacity-50" : ""}`}
+        class={`group font-mono text-xs overflow-hidden flex items-center gap-2 cursor-pointer hover:bg-gray-200 px-1 py-0.5 rounded transition-colors ${
+          isDragging ? "opacity-50" : ""
+        } ${tab.active ? "bg-gray-300 bg-opacity-50" : ""}`}
         onClick={handleClick}
       >
         <div class="flex items-center gap-2 flex-1 min-w-0">
-          {faviconUrl ? (
-            <img src={faviconUrl} alt="" class="w-4 h-4 flex-shrink-0" />
-          ) : (
-            <span class="w-4 h-4 flex-shrink-0 text-center">📄</span>
-          )}
+          {faviconUrl
+            ? <img src={faviconUrl} alt="" class="w-4 h-4 flex-shrink-0" />
+            : <span class="w-4 h-4 flex-shrink-0 text-center">📄</span>}
           <span class="truncate">{tab.title || "Untitled"}</span>
         </div>
         <button

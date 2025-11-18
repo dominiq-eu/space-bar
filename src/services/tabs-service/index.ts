@@ -1,41 +1,41 @@
-import { Effect, Schema, Option } from "effect"
+import { Effect, Option, Schema } from "effect"
 import {
+  GroupId,
   Tab,
   TabGroup,
+  TabGroupColor,
   TabId,
   WindowId,
-  GroupId,
-  TabGroupColor,
 } from "../state-service/types.ts"
 import {
-  mapChromeTabs,
-  mapChromeTabGroups,
   mapChromeTab,
   mapChromeTabGroup,
+  mapChromeTabGroups,
+  mapChromeTabs,
   mapTabChangeInfo,
 } from "./mappers.ts"
 import {
-  TabNotFoundError,
-  InvalidTabDataError,
-  TabAlreadyInGroupError,
-  TabOperationFailedError,
   GroupNotFoundError,
   InvalidGroupDataError,
+  InvalidTabDataError,
   InvalidTabUrlError,
+  TabAlreadyInGroupError,
+  TabNotFoundError,
+  TabOperationFailedError,
 } from "./errors.ts"
 import type {
+  TabActivatedEvent,
+  TabAttachedEvent,
+  TabCreatedEvent,
+  TabDetachedEvent,
   TabEvent,
   TabEventListener,
-  TabCreatedEvent,
-  TabUpdatedEvent,
-  TabRemovedEvent,
-  TabMovedEvent,
-  TabAttachedEvent,
-  TabDetachedEvent,
-  TabActivatedEvent,
   TabGroupCreatedEvent,
-  TabGroupUpdatedEvent,
   TabGroupRemovedEvent,
+  TabGroupUpdatedEvent,
+  TabMovedEvent,
+  TabRemovedEvent,
+  TabUpdatedEvent,
 } from "./events.ts"
 
 // Re-export constants
@@ -43,18 +43,18 @@ export * from "./constants.ts"
 
 // Re-export event types for consumers
 export type {
+  TabActivatedEvent,
+  TabAttachedEvent,
+  TabCreatedEvent,
+  TabDetachedEvent,
   TabEvent,
   TabEventListener,
-  TabCreatedEvent,
-  TabUpdatedEvent,
-  TabRemovedEvent,
-  TabMovedEvent,
-  TabAttachedEvent,
-  TabDetachedEvent,
-  TabActivatedEvent,
   TabGroupCreatedEvent,
-  TabGroupUpdatedEvent,
   TabGroupRemovedEvent,
+  TabGroupUpdatedEvent,
+  TabMovedEvent,
+  TabRemovedEvent,
+  TabUpdatedEvent,
 }
 
 // ============================================================================
@@ -440,7 +440,7 @@ export const toggleGroupCollapsed = (
  */
 export const subscribeToTabEvents = (
   listener: TabEventListener,
-): (() => void) => {
+): () => void => {
   // Tab Created
   const onTabCreated = (chromeTab: chrome.tabs.Tab) => {
     Effect.runPromise(mapChromeTab(chromeTab))
@@ -556,10 +556,9 @@ export const subscribeToTabEvents = (
       changes: {
         // Chrome doesn't tell us what changed, so we pass current values
         // Consumer can compare with their state if needed
-        title:
-          chromeGroup.title && chromeGroup.title.trim() !== ""
-            ? Option.some(chromeGroup.title)
-            : undefined,
+        title: chromeGroup.title && chromeGroup.title.trim() !== ""
+          ? Option.some(chromeGroup.title)
+          : undefined,
         color: chromeGroup.color,
         collapsed: chromeGroup.collapsed,
       },

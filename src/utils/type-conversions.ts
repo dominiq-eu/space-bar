@@ -22,7 +22,9 @@ export function urlToString(url: URL): string {
 /**
  * Convert optional URL to string | undefined for Chrome APIs
  */
-export function optionalUrlToString(url: Option.Option<URL>): string | undefined {
+export function optionalUrlToString(
+  url: Option.Option<URL>,
+): string | undefined {
   return Option.match(url, {
     onNone: () => undefined,
     onSome: (u) => u.href,
