@@ -1,6 +1,8 @@
-import type { Tab, TabGroup } from "../services/state-service/types.ts"
+import { Option } from "effect"
+import type { Tab, TabGroup, TabId } from "../services/state-service/types.ts"
 import type { DragData } from "./types.ts"
 import { TabItem } from "./TabItem.tsx"
+import { optionToUndefined } from "../utils/type-conversions.ts"
 import { colorMap } from "../services/tabs-service/index.ts"
 
 export interface GroupedTabsProps {
@@ -41,9 +43,7 @@ export function GroupedTabs({
 
   const handleCloseGroup = (e: MouseEvent) => {
     e.stopPropagation()
-    const tabIds = tabs
-      .map((tab) => tab.id)
-      .filter((id): id is number => id !== undefined)
+    const tabIds: TabId[] = tabs.map((tab) => tab.id)
     if (tabIds.length > 0) {
       chrome.tabs.remove(tabIds)
     }
@@ -62,7 +62,7 @@ export function GroupedTabs({
       >
         <div onClick={handleToggle} class="flex-1">
           {group.collapsed ? "▶ " : "▼ "}
-          {group.title || "Unnamed Group"} ({tabs.length})
+          {Option.getOrElse(group.title, () => "Unnamed Group")} ({tabs.length})
         </div>
         <button
           type="button"

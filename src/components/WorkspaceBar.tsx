@@ -1,6 +1,6 @@
 import { useState, useEffect } from "preact/hooks"
 import { Effect } from "effect"
-import type { AppState } from "../services/state-service/types.ts"
+import type { AppState, WindowId, WorkspaceId } from "../services/state-service/types.ts"
 import {
   getBookmarksBar,
   saveWorkspace,
@@ -184,11 +184,12 @@ export function WorkspaceBar({
           loadWorkspaces()
 
           // Automatically link the new workspace to the current window
-          if (workspaceFolder.id) {
-            Effect.runPromise(linkWindowToWorkspace(currentWindowId, workspaceFolder.id))
-              .catch((error) => {
-                console.error("Failed to link workspace:", error)
-              })
+          if (workspaceFolder.id && currentWindowId !== null) {
+            Effect.runPromise(
+              linkWindowToWorkspace(currentWindowId as WindowId, workspaceFolder.id as WorkspaceId)
+            ).catch((error) => {
+              console.error("Failed to link workspace:", error)
+            })
           }
         })
         .catch((error) => {

@@ -85,9 +85,15 @@ function parseTabUrl(
  *
  * Returns Effect with typed errors
  * Validates all fields and ensures domain model correctness
+ *
+ * @param chromeTab - The Chrome tab to map
+ * @param bookmarkTitleMap - Optional map of URL → Bookmark Title
+ *                          If provided and URL exists in map, bookmark title is used
+ *                          Otherwise falls back to browser tab title
  */
 export function mapChromeTab(
-  chromeTab: chrome.tabs.Tab
+  chromeTab: chrome.tabs.Tab,
+  bookmarkTitleMap?: Map<string, string>
 ): Effect.Effect<Tab, InvalidTabDataError | InvalidTabUrlError> {
   return Effect.gen(function* () {
     // Validate required fields
@@ -111,11 +117,16 @@ export function mapChromeTab(
         )
       : Option.none()
 
+    // Resolve title: Bookmark title > Browser title
+    const browserTitle = chromeTab.title || "Untitled"
+    const urlString = url.href
+    const title = bookmarkTitleMap?.get(urlString) ?? browserTitle
+
     // Build Tab - no need to Schema.decode since we already have validated types
     const tab: Tab = {
       id: chromeTab.id as TabId,
       windowId: chromeTab.windowId as WindowId,
-      title: chromeTab.title || "Untitled",
+      title,
       url,
       favIconUrl,
       active: chromeTab.active ?? false,
@@ -135,15 +146,19 @@ export function mapChromeTab(
  *
  * Filters out invalid tabs (logs errors)
  * Returns only valid tabs
+ *
+ * @param chromeTabs - Array of Chrome tabs to map
+ * @param bookmarkTitleMap - Optional map of URL → Bookmark Title for all tabs
  */
 export function mapChromeTabs(
-  chromeTabs: chrome.tabs.Tab[]
+  chromeTabs: chrome.tabs.Tab[],
+  bookmarkTitleMap?: Map<string, string>
 ): Effect.Effect<Tab[]> {
   return Effect.gen(function* () {
     const results = yield* Effect.forEach(
       chromeTabs,
       (chromeTab) =>
-        mapChromeTab(chromeTab).pipe(
+        mapChromeTab(chromeTab, bookmarkTitleMap).pipe(
           Effect.either // Convert to Either so we can filter
         ),
       { concurrency: "unbounded" }

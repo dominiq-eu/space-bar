@@ -1,6 +1,6 @@
 import { useState, useEffect } from "preact/hooks"
-import { Effect } from "effect"
-import type { Tab, TabGroup, AppState } from "../services/state-service/types.ts"
+import { Effect, Option } from "effect"
+import type { Tab, TabGroup, AppState, WindowId, WorkspaceId } from "../services/state-service/types.ts"
 import type { DragData } from "./types.ts"
 import { createAppState } from "../services/state-service/index.ts"
 import {
@@ -18,6 +18,7 @@ import {
 import { WindowSection } from "./WindowSection.tsx"
 import { LinkWorkspaceDialog } from "./LinkWorkspaceDialog.tsx"
 import { WorkspaceBar } from "./WorkspaceBar.tsx"
+import { optionToUndefined, optionContains, isSome } from "../utils/type-conversions.ts"
 
 export function App() {
   const [state, setState] = useState<AppState | null>(null)
@@ -94,7 +95,7 @@ export function App() {
   }
 
   const handleConfirmLink = (windowId: number, workspaceId: string) => {
-    Effect.runPromise(linkWindowToWorkspace(windowId, workspaceId))
+    Effect.runPromise(linkWindowToWorkspace(windowId as WindowId, workspaceId as WorkspaceId))
       .then(() => {
         loadWindowWorkspaceMap()
         setShowLinkDialog(null)
@@ -112,7 +113,7 @@ export function App() {
         type: "tab",
         tabId: tab.id,
         windowId: tab.windowId,
-        groupId: tab.groupId,
+        groupId: optionToUndefined(tab.groupId),
       })
     }
   }
@@ -204,8 +205,9 @@ export function App() {
 
     getWindowId().then((wId) => {
       if (wId !== undefined) {
-        Effect.runPromise(getWorkspaceForWindow(wId)).then((workspaceId) => {
-          if (workspaceId) {
+        Effect.runPromise(getWorkspaceForWindow(wId as WindowId)).then((workspaceIdOption) => {
+          if (isSome(workspaceIdOption)) {
+            const workspaceId = workspaceIdOption.value
             Effect.runPromise(syncWorkspace(wId, workspaceId)).catch(
               (error) => {
                 console.error("Failed to sync workspace:", error)
@@ -239,9 +241,11 @@ export function App() {
     }
     chrome.storage.onChanged.addListener(onStorageChanged)
 
-    // Listen for bookmark changes to update workspace names
+    // Listen for bookmark changes to update workspace names AND tab titles
     const onBookmarksChanged = () => {
       loadWorkspaceNames()
+      // Reload state to update tab titles from bookmark titles
+      loadStateDebounced()
     }
     chrome.bookmarks.onCreated.addListener(onBookmarksChanged)
     chrome.bookmarks.onRemoved.addListener(onBookmarksChanged)
@@ -318,7 +322,7 @@ export function App() {
     const onWindowCreated = () => loadStateDebounced()
     const onWindowRemoved = (windowId: number) => {
       loadStateDebounced()
-      Effect.runPromise(unlinkWindow(windowId))
+      Effect.runPromise(unlinkWindow(windowId as WindowId))
     }
     const onWindowFocusChanged = () => loadStateDebounced()
 
@@ -367,7 +371,7 @@ export function App() {
   // Group tab groups by window (based on tabs)
   const tabGroupsByWindow = new Map<number, TabGroup[]>()
   state.tabGroups.forEach((group) => {
-    const groupTab = state.tabs.find((tab) => tab.groupId === group.id)
+    const groupTab = state.tabs.find((tab) => optionContains(tab.groupId, group.id))
     if (groupTab?.windowId !== undefined) {
       if (!tabGroupsByWindow.has(groupTab.windowId)) {
         tabGroupsByWindow.set(groupTab.windowId, [])

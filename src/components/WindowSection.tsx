@@ -1,8 +1,10 @@
+import { Option } from "effect"
 import type { Tab, TabGroup, Window } from "../services/state-service/types.ts"
 import type { DragData } from "./types.ts"
 import { TabItem } from "./TabItem.tsx"
 import { PinnedTabs } from "./PinnedTabs.tsx"
 import { GroupedTabs } from "./GroupedTabs.tsx"
+import { isSome, optionContains } from "../utils/type-conversions.ts"
 
 export interface WindowSectionProps {
   window: Window
@@ -49,16 +51,21 @@ export function WindowSection({
   const renderedGroups = new Set<number>()
 
   unpinnedTabs.forEach((tab) => {
-    if (tab.groupId !== undefined && !renderedGroups.has(tab.groupId)) {
-      // This is the first tab of a group, render the entire group
-      const group = tabGroupMap.get(tab.groupId)
-      if (group) {
-        const groupTabs = unpinnedTabs.filter((t) => t.groupId === tab.groupId)
-        items.push({ type: "group", group, tabs: groupTabs })
-        renderedGroups.add(tab.groupId)
+    if (isSome(tab.groupId)) {
+      const groupId = tab.groupId.value
+      if (!renderedGroups.has(groupId)) {
+        // This is the first tab of a group, render the entire group
+        const group = tabGroupMap.get(groupId)
+        if (group) {
+          const groupTabs = unpinnedTabs.filter((t) =>
+            optionContains(t.groupId, groupId)
+          )
+          items.push({ type: "group", group, tabs: groupTabs })
+          renderedGroups.add(groupId)
+        }
       }
-    } else if (tab.groupId === undefined) {
-      // This is an ungrouped tab
+    } else {
+      // This is an ungrouped tab (groupId is None)
       items.push({ type: "tab", tab })
     }
   })
