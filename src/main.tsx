@@ -1,13 +1,13 @@
-import { Console, Effect } from "effect"
 import { render } from "preact"
 import { App } from "./components/App.tsx"
+import "./input.css"
+import { runtimePromise, ServiceContext } from "./components/ServiceContext.tsx"
 
-const program = Effect.sync(() => {
-  const outputElement = document.getElementById("output")
-  if (outputElement) {
-    render(<App />, outputElement)
-  }
-  Console.log("Effect-TS program executed successfully!")
+runtimePromise.then(([syncService, dragDropService]) => {
+  render(
+    <ServiceContext.Provider value={{ syncService, dragDropService }}>
+      <App />
+    </ServiceContext.Provider>,
+    document.getElementById("app")!,
+  )
 })
-
-Effect.runSync(program)

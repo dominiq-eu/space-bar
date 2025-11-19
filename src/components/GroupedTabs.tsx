@@ -2,7 +2,7 @@ import { Option } from "effect"
 import type { Tab, TabGroup, TabId } from "../services/state-service/types.ts"
 import type { DragData } from "./types.ts"
 import { TabItem } from "./TabItem.tsx"
-import { optionToUndefined } from "../utils/type-conversions.ts"
+
 import { colorMap } from "../services/tabs-service/index.ts"
 
 export interface GroupedTabsProps {

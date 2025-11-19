@@ -1,4 +1,4 @@
-import { Option, Schema } from "effect"
+import { Schema } from "effect"
 import { GroupId, Tab, TabId, WindowId } from "../state-service/types.ts"
 
 /**

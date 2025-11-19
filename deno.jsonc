@@ -25,7 +25,7 @@
   },
   "tasks": {
     "dev": "deno run --watch --allow-read --allow-write src/main.tsx",
-    "build": "deno task build:css && deno bundle --outdir dist sidepanel.html && deno bundle --outdir dist src/background.ts",
+    "build": "deno task build:css && deno task build:background && deno task build:sidepanel",
     "build:css": "deno run -A npm:tailwindcss -i src/input.css -o dist/output.css --minify",
     "build:background": "deno bundle --outdir dist src/background.ts",
     "build:sidepanel": "deno bundle --outdir dist sidepanel.html",

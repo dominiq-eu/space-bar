@@ -279,12 +279,12 @@ export function WorkspaceBar({
     let y = e.clientY
 
     // Check vertical overflow
-    if (y + menuHeight > window.innerHeight) {
+    if (y + menuHeight > globalThis.innerHeight) {
       y = e.clientY - menuHeight
     }
 
     // Check horizontal overflow
-    if (x + menuWidth > window.innerWidth) {
+    if (x + menuWidth > globalThis.innerWidth) {
       x = e.clientX - menuWidth
     }
 

@@ -1,10 +1,9 @@
-import { Effect, Option, ParseResult, pipe, Schema } from "effect"
+import { Effect, Option, Schema } from "effect"
 import {
   GroupId,
   Tab,
   TabChanges,
   TabGroup,
-  TabGroupColor,
   TabId,
   WindowId,
 } from "../state-service/types.ts"

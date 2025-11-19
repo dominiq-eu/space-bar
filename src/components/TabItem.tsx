@@ -7,11 +7,7 @@ import type {
 } from "../services/state-service/types.ts"
 import { VALID_GROUP_COLORS } from "../services/workspaces-service/metadata-parser.ts"
 import { renameTabBookmark } from "../services/workspaces-service/index.ts"
-import {
-  optionalUrlToString,
-  optionToUndefined,
-  urlToString,
-} from "../utils/type-conversions.ts"
+import { optionToUndefined, urlToString } from "../utils/type-conversions.ts"
 
 export interface TabItemProps {
   tab: Tab
@@ -102,10 +98,11 @@ export function TabItem({
             } else {
               // Create new group with same properties
               chrome.tabs.group({ tabIds: [newTab.id] }, (groupId) => {
-                const groupColor =
-                  VALID_GROUP_COLORS.includes(tabGroup.color as any)
-                    ? tabGroup.color
-                    : "grey"
+                const groupColor = VALID_GROUP_COLORS.includes(
+                    tabGroup.color as chrome.tabGroups.ColorEnum,
+                  )
+                  ? tabGroup.color
+                  : "grey"
 
                 chrome.tabGroups.update(groupId, {
                   title: optionToUndefined(tabGroup.title),
@@ -165,12 +162,12 @@ export function TabItem({
     let y = e.clientY
 
     // Check vertical overflow
-    if (y + menuHeight > window.innerHeight) {
+    if (y + menuHeight > globalThis.innerHeight) {
       y = e.clientY - menuHeight
     }
 
     // Check horizontal overflow
-    if (x + menuWidth > window.innerWidth) {
+    if (x + menuWidth > globalThis.innerWidth) {
       x = e.clientX - menuWidth
     }
 

@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from "effect"
+import { Effect, Option } from "effect"
 import {
   GroupId,
   Tab,
@@ -19,7 +19,6 @@ import {
   InvalidGroupDataError,
   InvalidTabDataError,
   InvalidTabUrlError,
-  TabAlreadyInGroupError,
   TabNotFoundError,
   TabOperationFailedError,
 } from "./errors.ts"

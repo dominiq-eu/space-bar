@@ -1,7 +1,7 @@
-import { Effect, Option } from "effect"
+import { Effect } from "effect"
 import type {
   AppState,
-  GroupId,
+  Tab,
   TabGroup,
   WindowId,
   WorkspaceId,
@@ -23,7 +23,6 @@ import {
   getOrElse,
   isSome,
   optionContains,
-  optionToUndefined,
   urlToString,
 } from "../../utils/type-conversions.ts"
 
@@ -336,7 +335,7 @@ const syncWorkspaceInternal = (windowId: number, workspaceId: string) =>
 
     // Get tabs for this window
     const windowTabs = state.tabs.filter(
-      (tab) => tab.windowId === windowId,
+      (tab: Tab) => tab.windowId === windowId,
     )
     const windowGroups = state.tabGroups.filter((group) =>
       windowTabs.some((tab) => optionContains(tab.groupId, group.id))

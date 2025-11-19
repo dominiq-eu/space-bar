@@ -31,6 +31,15 @@ export function optionalUrlToString(
   })
 }
 
+/**
+ * Check if a favicon URL is valid
+ */
+export function isValidFavIconUrl(url: string | undefined): boolean {
+  return !!url &&
+    (url.startsWith("http") || url.startsWith("data:") ||
+      url.startsWith("chrome-extension:"))
+}
+
 // ============================================================================
 // Option<T> Conversions
 // ============================================================================

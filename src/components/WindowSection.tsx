@@ -1,4 +1,3 @@
-import { Option } from "effect"
 import type { Tab, TabGroup, Window } from "../services/state-service/types.ts"
 import type { DragData } from "./types.ts"
 import { TabItem } from "./TabItem.tsx"

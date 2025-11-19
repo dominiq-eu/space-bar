@@ -2,13 +2,9 @@ import { Effect } from "effect"
 import { getWindows } from "../windows-service/index.ts"
 import { getTabGroups } from "../tabs-service/index.ts"
 import { mapChromeTabs } from "../tabs-service/mappers.ts"
-import {
-  getWorkspaceForWindow,
-  STORAGE_KEY_WINDOW_WORKSPACE_MAP,
-} from "../storage-service/index.ts"
+import { STORAGE_KEY_WINDOW_WORKSPACE_MAP } from "../storage-service/index.ts"
 import { getBookmarkTitlesForWorkspace } from "../workspaces-service/bookmark-title-lookup.ts"
-import type { WindowId, WorkspaceId } from "./types.ts"
-import { isSome } from "../../utils/type-conversions.ts"
+import type { WorkspaceId } from "./types.ts"
 
 /**
  * Get current timestamp
