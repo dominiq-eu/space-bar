@@ -8,6 +8,7 @@ import { optionContains } from "../utils/type-conversions.ts"
 import { WindowList } from "./WindowList.tsx"
 import { useAppState } from "../hooks/useAppState.ts"
 import { useSyncService } from "../hooks/useSyncService.ts"
+import type { Tab, TabGroup } from "../services/state-service/types.ts"
 
 function AppContent() {
   const { state } = useAppState()
@@ -79,6 +80,25 @@ function AppContent() {
       ? windowWorkspaceMap[currentWindowId]
       : undefined
 
+  // Only render the current window
+  const currentWindow = state.windows.find((w) => w.id === currentWindowId)
+
+  if (!currentWindow) {
+    return null
+  }
+
+  const windowTabs = state.tabs.filter((t) => t.windowId === currentWindow.id)
+  const windowGroups = state.tabGroups.filter((g) =>
+    state.tabs.some(
+      (t) => optionContains(t.groupId, g.id) && t.windowId === currentWindow.id,
+    )
+  )
+
+  const tabsByWindow = new Map<number, Tab[]>([[currentWindow.id, windowTabs]])
+  const tabGroupsByWindow = new Map<number, TabGroup[]>([
+    [currentWindow.id, windowGroups],
+  ])
+
   return (
     <div class="pb-16">
       {showLinkDialog !== null && (
@@ -90,31 +110,14 @@ function AppContent() {
       )}
 
       <div class="p-4 space-y-4">
-        {state.windows.map((window) => {
-          const windowTabs = state.tabs.filter(
-            (t) => t.windowId === window.id,
-          )
-          const windowGroups = state.tabGroups.filter(
-            (g) =>
-              state.tabs.some(
-                (t) =>
-                  optionContains(t.groupId, g.id) && t.windowId === window.id,
-              ),
-          )
-
-          return (
-            <div key={window.id} class="space-y-2">
-              <WindowList
-                windows={[window]}
-                tabsByWindow={new Map([[window.id, windowTabs]])}
-                tabGroupsByWindow={new Map([[window.id, windowGroups]])}
-                currentWindowId={currentWindowId}
-                workspaceNames={workspaceNames}
-                onLinkWorkspace={openLinkDialog}
-              />
-            </div>
-          )
-        })}
+        <WindowList
+          windows={[currentWindow]}
+          tabsByWindow={tabsByWindow}
+          tabGroupsByWindow={tabGroupsByWindow}
+          currentWindowId={currentWindowId}
+          workspaceNames={workspaceNames}
+          onLinkWorkspace={openLinkDialog}
+        />
       </div>
 
       <WorkspaceBar
