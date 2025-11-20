@@ -251,7 +251,7 @@ export interface BrowserApiService {
      * Never fails - returns empty array on error
      */
     readonly getAll: (
-      getInfo?: chrome.windows.GetInfo,
+      getInfo?: chrome.windows.QueryOptions,
     ) => Effect.Effect<chrome.windows.Window[], never>
 
     /**

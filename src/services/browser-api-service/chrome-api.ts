@@ -92,7 +92,8 @@ const make = Effect.sync(() => {
 
       remove: (tabIds: number | number[]) =>
         Effect.async<void, TabOperationError>((resume) => {
-          chrome.tabs.remove(tabIds, () => {
+          const ids = Array.isArray(tabIds) ? tabIds : [tabIds]
+          chrome.tabs.remove(ids, () => {
             if (chrome.runtime.lastError) {
               resume(
                 Effect.fail(
@@ -114,21 +115,47 @@ const make = Effect.sync(() => {
       ) =>
         Effect.async<chrome.tabs.Tab | chrome.tabs.Tab[], TabOperationError>(
           (resume) => {
-            chrome.tabs.move(tabIds, moveProperties, (result) => {
-              if (chrome.runtime.lastError) {
-                resume(
-                  Effect.fail(
-                    new TabOperationError({
-                      operation: "move",
-                      reason: chrome.runtime.lastError.message ||
-                        "Unknown error",
-                    }),
-                  ),
-                )
-              } else {
-                resume(Effect.succeed(result))
-              }
-            })
+            if (Array.isArray(tabIds)) {
+              chrome.tabs.move(
+                tabIds,
+                moveProperties,
+                (result: chrome.tabs.Tab[]) => {
+                  if (chrome.runtime.lastError) {
+                    resume(
+                      Effect.fail(
+                        new TabOperationError({
+                          operation: "move",
+                          reason: chrome.runtime.lastError.message ||
+                            "Unknown error",
+                        }),
+                      ),
+                    )
+                  } else {
+                    resume(Effect.succeed(result))
+                  }
+                },
+              )
+            } else {
+              chrome.tabs.move(
+                tabIds,
+                moveProperties,
+                (result: chrome.tabs.Tab) => {
+                  if (chrome.runtime.lastError) {
+                    resume(
+                      Effect.fail(
+                        new TabOperationError({
+                          operation: "move",
+                          reason: chrome.runtime.lastError.message ||
+                            "Unknown error",
+                        }),
+                      ),
+                    )
+                  } else {
+                    resume(Effect.succeed(result))
+                  }
+                },
+              )
+            }
           },
         ),
 
@@ -268,7 +295,7 @@ const make = Effect.sync(() => {
     // Windows API
     // ========================================================================
     windows: {
-      getAll: (getInfo?: chrome.windows.GetInfo) =>
+      getAll: (getInfo?: chrome.windows.QueryOptions) =>
         Effect.async<chrome.windows.Window[], never>((resume) => {
           chrome.windows.getAll(getInfo ?? {}, (windows) => {
             resume(Effect.succeed(windows))
@@ -491,7 +518,7 @@ const make = Effect.sync(() => {
       local: {
         get: (keys?: string | string[]) =>
           Effect.async<Record<string, unknown>, never>((resume) => {
-            chrome.storage.local.get(keys, (result) => {
+            chrome.storage.local.get(keys ?? null, (result) => {
               // Never fail - return empty object on error
               if (chrome.runtime.lastError) {
                 resume(Effect.succeed({}))
