@@ -1,4 +1,8 @@
 import { Effect } from "effect"
+import {
+  BrowserApiService,
+  ChromeApiServiceLive,
+} from "../browser-api-service/index.ts"
 import type { WorkspaceId } from "../state-service/types.ts"
 import { parseBookmarkPinnedStatus } from "./metadata-parser.ts"
 
@@ -38,27 +42,32 @@ const collectBookmarkTitles = (
  */
 export const getBookmarkTitlesForWorkspace = (
   workspaceId: WorkspaceId,
-): Effect.Effect<Map<string, string>, never> =>
-  Effect.async<Map<string, string>, never>((resume) => {
-    chrome.bookmarks.getSubTree(workspaceId, (results) => {
-      // Immediately check and consume lastError to prevent Chrome from logging it
-      // This handles cases where the workspace bookmark was deleted
-      const error = chrome.runtime.lastError
-      if (error || !results || results.length === 0) {
-        // Silently handle error - workspace bookmark might have been deleted
-        resume(Effect.succeed(new Map()))
-        return
-      }
+): Effect.Effect<Map<string, string>, never> => {
+  const program = Effect.gen(function* () {
+    const browserApi = yield* BrowserApiService
 
-      const workspaceNode = results[0]
-      const titleMap = new Map<string, string>()
+    const results = yield* browserApi.bookmarks.getSubTree(workspaceId).pipe(
+      Effect.catchAll(() => Effect.succeed([])),
+    )
 
-      // Recursively collect all bookmark titles
-      collectBookmarkTitles(workspaceNode, titleMap)
+    if (results.length === 0) {
+      return new Map<string, string>()
+    }
 
-      resume(Effect.succeed(titleMap))
-    })
+    const workspaceNode = results[0]
+    const titleMap = new Map<string, string>()
+
+    // Recursively collect all bookmark titles
+    collectBookmarkTitles(workspaceNode, titleMap)
+
+    return titleMap
   })
+
+  return program.pipe(
+    Effect.provide(ChromeApiServiceLive),
+    Effect.catchAll(() => Effect.succeed(new Map())),
+  )
+}
 
 /**
  * Get bookmark titles for multiple workspaces

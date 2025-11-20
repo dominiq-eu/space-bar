@@ -1,5 +1,9 @@
 import { useEffect, useState } from "preact/hooks"
 import { Effect, Option } from "effect"
+import {
+  BrowserApiService,
+  ChromeApiServiceLive,
+} from "../services/browser-api-service/index.ts"
 import type {
   Tab,
   TabGroup,
@@ -8,6 +12,14 @@ import type {
 import { VALID_GROUP_COLORS } from "../services/workspaces-service/metadata-parser.ts"
 import { renameTabBookmark } from "../services/workspaces-service/index.ts"
 import { optionToUndefined, urlToString } from "../utils/type-conversions.ts"
+
+// Helper to get BrowserApiService instance
+const getBrowserApi = () => {
+  const program = Effect.gen(function* () {
+    return yield* BrowserApiService
+  })
+  return Effect.runSync(program.pipe(Effect.provide(ChromeApiServiceLive)))
+}
 
 export interface TabItemProps {
   tab: Tab
@@ -70,59 +82,69 @@ export function TabItem({
   const handleClick = () => {
     if (!tab.id) return
 
+    const browserApi = getBrowserApi()
+
     // If tab is in a different window, open URL in new tab in current window
     if (currentWindowId && tab.windowId !== currentWindowId && tab.url) {
-      chrome.tabs.create(
-        {
+      Effect.runPromise(
+        browserApi.tabs.create({
           windowId: currentWindowId,
           url: urlToString(tab.url),
           active: true,
-        },
-        (newTab) => {
-          // If the original tab was in a group, add the new tab to a matching group
-          if (tabGroup && newTab.id) {
-            // Find existing group with same name and color in current window
-            const matchingGroup = allTabGroups?.find(
-              (g) =>
-                Option.getOrElse(g.title, () => "") ===
-                  Option.getOrElse(tabGroup.title, () => "") &&
-                g.color === tabGroup.color,
-            )
+        }),
+      ).then((newTab) => {
+        // If the original tab was in a group, add the new tab to a matching group
+        if (tabGroup && newTab.id) {
+          // Find existing group with same name and color in current window
+          const matchingGroup = allTabGroups?.find(
+            (g) =>
+              Option.getOrElse(g.title, () => "") ===
+                Option.getOrElse(tabGroup.title, () => "") &&
+              g.color === tabGroup.color,
+          )
 
-            if (matchingGroup) {
-              // Add to existing group
-              chrome.tabs.group({
+          if (matchingGroup) {
+            // Add to existing group
+            Effect.runPromise(
+              browserApi.tabs.group({
                 tabIds: [newTab.id],
                 groupId: matchingGroup.id,
-              })
-            } else {
-              // Create new group with same properties
-              chrome.tabs.group({ tabIds: [newTab.id] }, (groupId) => {
-                const groupColor = VALID_GROUP_COLORS.includes(
-                    tabGroup.color as chrome.tabGroups.ColorEnum,
-                  )
-                  ? tabGroup.color
-                  : "grey"
+              }),
+            )
+          } else {
+            // Create new group with same properties
+            Effect.runPromise(
+              browserApi.tabs.group({ tabIds: [newTab.id] }),
+            ).then((groupId) => {
+              const groupColor = VALID_GROUP_COLORS.includes(
+                  tabGroup.color as chrome.tabGroups.ColorEnum,
+                )
+                ? tabGroup.color
+                : "grey"
 
-                chrome.tabGroups.update(groupId, {
+              Effect.runPromise(
+                browserApi.tabGroups.update(groupId, {
                   title: optionToUndefined(tabGroup.title),
                   color: groupColor as chrome.tabGroups.ColorEnum,
                   collapsed: tabGroup.collapsed,
-                })
-              })
-            }
+                }),
+              )
+            })
           }
-        },
-      )
+        }
+      })
     } else {
-      chrome.tabs.update(tab.id, { active: true })
+      Effect.runPromise(
+        browserApi.tabs.update(tab.id, { active: true }),
+      )
     }
   }
 
   const handleClose = (e: MouseEvent) => {
     e.stopPropagation()
     if (tab.id) {
-      chrome.tabs.remove(tab.id)
+      const browserApi = getBrowserApi()
+      Effect.runPromise(browserApi.tabs.remove(tab.id))
     }
   }
 
@@ -205,14 +227,18 @@ export function TabItem({
 
   const handleCloseFromMenu = () => {
     if (tab.id) {
-      chrome.tabs.remove(tab.id)
+      const browserApi = getBrowserApi()
+      Effect.runPromise(browserApi.tabs.remove(tab.id))
     }
     setContextMenu(null)
   }
 
   const handleTogglePin = () => {
     if (tab.id) {
-      chrome.tabs.update(tab.id, { pinned: !tab.pinned })
+      const browserApi = getBrowserApi()
+      Effect.runPromise(
+        browserApi.tabs.update(tab.id, { pinned: !tab.pinned }),
+      )
     }
     setContextMenu(null)
   }
@@ -244,7 +270,8 @@ export function TabItem({
         },
       )
 
-      const extensionId = chrome.runtime.id
+      const browserApi = getBrowserApi()
+      const extensionId = browserApi.runtime.getId()
       const encodedUrl = encodeURIComponent(normalizedUrl)
       const size = 32
       return `chrome-extension://${extensionId}/_favicon/?pageUrl=${encodedUrl}&size=${size}`

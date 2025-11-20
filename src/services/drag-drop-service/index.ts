@@ -1,4 +1,5 @@
 import { Context, Effect, Layer, SubscriptionRef } from "effect"
+import { BrowserApiService } from "../browser-api-service/index.ts"
 import type { Tab, TabGroup } from "../state-service/types.ts"
 
 // --- Types ---
@@ -43,6 +44,8 @@ export const DragDropService = Context.GenericTag<DragDropService>(
 // --- Implementation ---
 
 const make = Effect.gen(function* () {
+  const browserApi = yield* BrowserApiService
+
   const dragState = yield* SubscriptionRef.make<DragState>(initialDragState)
 
   const startDrag = (type: DragType, item: Tab | TabGroup) =>
@@ -61,16 +64,11 @@ const make = Effect.gen(function* () {
       if (!state.isDragging || !state.draggedItemId) return
 
       if (state.dragType === "tab") {
-        yield* Effect.promise(() =>
-          new Promise<void>((resolve) => {
-            chrome.tabs.group(
-              {
-                tabIds: state.draggedItemId as number,
-                groupId: targetGroupId,
-              },
-              () => resolve(),
-            )
-          })
+        yield* browserApi.tabs.group({
+          tabIds: [state.draggedItemId as number],
+          groupId: targetGroupId,
+        }).pipe(
+          Effect.catchAll(() => Effect.void),
         )
       }
       // Groups cannot be dropped into groups
@@ -83,29 +81,23 @@ const make = Effect.gen(function* () {
       if (!state.isDragging || !state.draggedItemId) return
 
       if (state.dragType === "tab") {
-        yield* Effect.promise(() =>
-          new Promise<void>((resolve) => {
-            chrome.tabs.move(
-              state.draggedItemId as number,
-              { windowId: targetWindowId, index: -1 },
-              () => resolve(),
-            )
-          })
+        // Move tab to target window
+        yield* browserApi.tabs.move(state.draggedItemId as number, {
+          windowId: targetWindowId,
+          index: -1,
+        }).pipe(
+          Effect.catchAll(() => Effect.void),
         )
-        yield* Effect.promise(() =>
-          new Promise<void>((resolve) => {
-            chrome.tabs.ungroup(state.draggedItemId as number, () => resolve())
-          })
+        // Ungroup the tab
+        yield* browserApi.tabs.ungroup([state.draggedItemId as number]).pipe(
+          Effect.catchAll(() => Effect.void),
         )
       } else if (state.dragType === "group") {
-        yield* Effect.promise(() =>
-          new Promise<void>((resolve) => {
-            chrome.tabGroups.move(
-              state.draggedItemId as number,
-              { windowId: targetWindowId, index: -1 },
-              () => resolve(),
-            )
-          })
+        yield* browserApi.tabGroups.move(state.draggedItemId as number, {
+          windowId: targetWindowId,
+          index: -1,
+        }).pipe(
+          Effect.catchAll(() => Effect.void),
         )
       }
       yield* endDrag

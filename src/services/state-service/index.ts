@@ -1,8 +1,12 @@
 import { Effect } from "effect"
+import {
+  BrowserApiService,
+  ChromeApiServiceLive,
+} from "../browser-api-service/index.ts"
 import { getWindows } from "../windows-service/index.ts"
 import { getTabGroups } from "../tabs-service/index.ts"
 import { mapChromeTabs } from "../tabs-service/mappers.ts"
-import { STORAGE_KEY_WINDOW_WORKSPACE_MAP } from "../storage-service/index.ts"
+import { getWindowWorkspaceMap } from "../storage-service/index.ts"
 import { getBookmarkTitlesForWorkspace } from "../workspaces-service/bookmark-title-lookup.ts"
 import type { WorkspaceId } from "./types.ts"
 
@@ -13,31 +17,39 @@ export const getCurrentTime = () => Effect.succeed(new Date())
 
 /**
  * Load window-workspace mappings from storage
+ * Uses storage-service backwards-compatibility function
  */
 const loadWindowWorkspaceMap = (): Effect.Effect<
   Record<number, string>,
   never
 > =>
-  Effect.async<Record<number, string>, never>((resume) => {
-    chrome.storage.local.get([STORAGE_KEY_WINDOW_WORKSPACE_MAP], (result) => {
-      const map = result[STORAGE_KEY_WINDOW_WORKSPACE_MAP] || {}
-      resume(Effect.succeed(map))
-    })
-  })
+  getWindowWorkspaceMap().pipe(
+    Effect.map((map) => {
+      // Convert string keys to number keys
+      const result: Record<number, string> = {}
+      for (const [key, value] of Object.entries(map)) {
+        result[Number(key)] = value
+      }
+      return result
+    }),
+    Effect.catchAll(() => Effect.succeed({})),
+  )
 
 /**
- * Get tabs with bookmark titles resolved
- * Loads bookmark titles for all linked workspaces and uses them when mapping tabs
+ * Get all Chrome tabs using BrowserApiService
+ * Returns raw chrome.tabs.Tab[] for further processing
  */
-const getTabsWithBookmarkTitles = (): Effect.Effect<
-  chrome.tabs.Tab[],
-  never
-> =>
-  Effect.async<chrome.tabs.Tab[], never>((resume) => {
-    chrome.tabs.query({}, (chromeTabs) => {
-      resume(Effect.succeed(chromeTabs))
-    })
+const getChromeTabs = (): Effect.Effect<chrome.tabs.Tab[], never> => {
+  const program = Effect.gen(function* () {
+    const browserApi = yield* BrowserApiService
+    return yield* browserApi.tabs.query({})
   })
+
+  return program.pipe(
+    Effect.provide(ChromeApiServiceLive),
+    Effect.catchAll(() => Effect.succeed([])),
+  )
+}
 
 /**
  * Create complete app state by fetching all data
@@ -48,7 +60,7 @@ export const createAppState = () =>
     // Load all data in parallel
     const [chromeTabs, tabGroups, windows, windowWorkspaceMap] = yield* Effect
       .all([
-        getTabsWithBookmarkTitles(),
+        getChromeTabs(),
         getTabGroups(),
         getWindows(),
         loadWindowWorkspaceMap(),

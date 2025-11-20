@@ -1,6 +1,7 @@
 import { createContext } from "preact"
 import { useContext } from "preact/hooks"
 import { Effect, Layer, ManagedRuntime } from "effect"
+import { ChromeApiServiceLive } from "../services/browser-api-service/index.ts"
 import { SyncService, SyncServiceLive } from "../services/sync-service/index.ts"
 import {
   DragDropService,
@@ -13,7 +14,12 @@ interface ServiceContextType {
 }
 
 // Create a runtime to instantiate the services
-const AppLayer = Layer.merge(SyncServiceLive, DragDropServiceLive)
+// BrowserApiService is a dependency for both SyncService and DragDropService
+// We need to provide ChromeApiServiceLive to both services
+const AppLayer = Layer.provide(
+  Layer.merge(SyncServiceLive, DragDropServiceLive),
+  ChromeApiServiceLive,
+)
 const runtime = ManagedRuntime.make(AppLayer)
 
 // We need to synchronously get the services for the context default value,

@@ -1,7 +1,9 @@
 import { Context, Effect, Layer, SubscriptionRef } from "effect"
+import { BrowserApiService } from "../browser-api-service/index.ts"
 import type { WindowId, WorkspaceId } from "../state-service/types.ts"
 import {
   cleanupWindowWorkspaceMap,
+  getWindowWorkspaceMap,
   getWorkspaceForWindow,
   linkWindowToWorkspace,
   STORAGE_KEY_WINDOW_WORKSPACE_MAP,
@@ -34,38 +36,44 @@ export const SyncService = Context.GenericTag<SyncService>("SyncService")
 // --- Implementation ---
 
 const make = Effect.gen(function* () {
+  const browserApi = yield* BrowserApiService
+
   const windowWorkspaceMap = yield* SubscriptionRef.make<
     Record<number, string>
   >(
     {},
   )
 
-  const loadWindowWorkspaceMap = Effect.async<void, never>((resume) => {
-    chrome.storage.local.get([STORAGE_KEY_WINDOW_WORKSPACE_MAP], (result) => {
-      const map = result[STORAGE_KEY_WINDOW_WORKSPACE_MAP] || {}
-      Effect.runSync(SubscriptionRef.set(windowWorkspaceMap, map))
-      resume(Effect.void)
+  const loadWindowWorkspaceMap = (): Effect.Effect<void, never> =>
+    Effect.gen(function* () {
+      const map = yield* getWindowWorkspaceMap().pipe(
+        Effect.map((stringMap) => {
+          // Convert string keys to number keys
+          const result: Record<number, string> = {}
+          for (const [key, value] of Object.entries(stringMap)) {
+            result[Number(key)] = value
+          }
+          return result
+        }),
+        Effect.catchAll(() => Effect.succeed({})),
+      )
+      yield* SubscriptionRef.set(windowWorkspaceMap, map)
     })
-  })
 
   // Initial load
-  yield* loadWindowWorkspaceMap
+  yield* loadWindowWorkspaceMap()
 
-  // Storage Listener
+  // Storage Listener using BrowserApiService
   yield* Effect.acquireRelease(
     Effect.sync(() => {
-      const onStorageChanged = (
-        changes: Record<string, chrome.storage.StorageChange>,
-      ) => {
+      const onStorageChanged = browserApi.events.onStorageChanged((changes) => {
         if (changes[STORAGE_KEY_WINDOW_WORKSPACE_MAP]) {
-          Effect.runFork(loadWindowWorkspaceMap)
+          Effect.runFork(loadWindowWorkspaceMap())
         }
-      }
-      chrome.storage.onChanged.addListener(onStorageChanged)
+      })
       return onStorageChanged
     }),
-    (listener) =>
-      Effect.sync(() => chrome.storage.onChanged.removeListener(listener)),
+    (cleanup) => Effect.sync(() => cleanup()),
   )
 
   // Cleanup Listener (runs once on startup)
@@ -87,7 +95,7 @@ const make = Effect.gen(function* () {
         windowId as WindowId,
         workspaceId as WorkspaceId,
       )
-      yield* loadWindowWorkspaceMap
+      yield* loadWindowWorkspaceMap()
       yield* syncIfLinked(undefined, windowId)
     }).pipe(Effect.catchAll((error) => Effect.logError(error)))
 
@@ -103,9 +111,9 @@ const make = Effect.gen(function* () {
       let targetWindowId: number | undefined = windowId
 
       if (targetWindowId === undefined && tabId !== undefined) {
-        const tab = yield* Effect.async<chrome.tabs.Tab, never>((resume) => {
-          chrome.tabs.get(tabId, (tab) => resume(Effect.succeed(tab)))
-        })
+        const tab = yield* browserApi.tabs.get(tabId).pipe(
+          Effect.catchAll(() => Effect.succeed(undefined)),
+        )
         targetWindowId = tab?.windowId
       }
 

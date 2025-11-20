@@ -1,5 +1,9 @@
 import { useEffect, useState } from "preact/hooks"
 import { Effect } from "effect"
+import {
+  BrowserApiService,
+  ChromeApiServiceLive,
+} from "../services/browser-api-service/index.ts"
 import type {
   AppState,
   WindowId,
@@ -15,6 +19,14 @@ import {
   linkWindowToWorkspace,
   unlinkWindow,
 } from "../services/storage-service/index.ts"
+
+// Helper to get BrowserApiService instance
+const getBrowserApi = () => {
+  const program = Effect.gen(function* () {
+    return yield* BrowserApiService
+  })
+  return Effect.runSync(program.pipe(Effect.provide(ChromeApiServiceLive)))
+}
 
 export interface WorkspaceBarProps {
   currentWindowId: number | null
@@ -53,8 +65,13 @@ export function WorkspaceBar({
   >(null)
 
   const loadWorkspaces = () => {
+    const browserApi = getBrowserApi()
     Effect.runPromise(getBookmarksBar).then((bookmarksBar) => {
-      chrome.bookmarks.getChildren(bookmarksBar.id, (children) => {
+      Effect.runPromise(
+        browserApi.bookmarks.getChildren(bookmarksBar.id).pipe(
+          Effect.catchAll(() => Effect.succeed([])),
+        ),
+      ).then((children) => {
         setWorkspaces(children.filter((child) => !child.url))
       })
     })
@@ -63,19 +80,27 @@ export function WorkspaceBar({
   useEffect(() => {
     loadWorkspaces()
 
+    const browserApi = getBrowserApi()
+
     // Listen for bookmark changes to update the workspace bar
     const onBookmarksChanged = () => {
       loadWorkspaces()
     }
 
-    chrome.bookmarks.onCreated.addListener(onBookmarksChanged)
-    chrome.bookmarks.onRemoved.addListener(onBookmarksChanged)
-    chrome.bookmarks.onChanged.addListener(onBookmarksChanged)
+    const cleanupBookmarkCreated = browserApi.events.onBookmarkCreated(
+      onBookmarksChanged,
+    )
+    const cleanupBookmarkRemoved = browserApi.events.onBookmarkRemoved(
+      onBookmarksChanged,
+    )
+    const cleanupBookmarkChanged = browserApi.events.onBookmarkChanged(
+      onBookmarksChanged,
+    )
 
     return () => {
-      chrome.bookmarks.onCreated.removeListener(onBookmarksChanged)
-      chrome.bookmarks.onRemoved.removeListener(onBookmarksChanged)
-      chrome.bookmarks.onChanged.removeListener(onBookmarksChanged)
+      cleanupBookmarkCreated()
+      cleanupBookmarkRemoved()
+      cleanupBookmarkChanged()
     }
   }, [])
 
@@ -156,9 +181,14 @@ export function WorkspaceBar({
 
   const handleDeleteWorkspace = (workspaceId: string) => {
     if (confirm("Delete this workspace?")) {
-      chrome.bookmarks.removeTree(workspaceId, () => {
-        loadWorkspaces()
-      })
+      const browserApi = getBrowserApi()
+      Effect.runPromise(browserApi.bookmarks.removeTree(workspaceId))
+        .then(() => {
+          loadWorkspaces()
+        })
+        .catch((error) => {
+          console.error("Failed to delete workspace:", error)
+        })
     }
     setContextMenu(null)
   }
@@ -215,15 +245,20 @@ export function WorkspaceBar({
         return
       }
 
-      chrome.bookmarks.update(
-        workspaceDialog.workspaceId,
-        { title: workspaceName },
-        () => {
+      const browserApi = getBrowserApi()
+      Effect.runPromise(
+        browserApi.bookmarks.update(workspaceDialog.workspaceId, {
+          title: workspaceName,
+        }),
+      )
+        .then(() => {
           loadWorkspaces()
           setWorkspaceDialog(null)
           setWorkspaceName("")
-        },
-      )
+        })
+        .catch((error) => {
+          console.error("Failed to rename workspace:", error)
+        })
     } else {
       // Create new workspace
       if (!currentWindowId) return

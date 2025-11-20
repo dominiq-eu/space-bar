@@ -1,9 +1,21 @@
-import { Option } from "effect"
+import { Effect, Option } from "effect"
+import {
+  BrowserApiService,
+  ChromeApiServiceLive,
+} from "../services/browser-api-service/index.ts"
 import type { Tab, TabGroup, TabId } from "../services/state-service/types.ts"
 import type { DragData } from "./types.ts"
 import { TabItem } from "./TabItem.tsx"
 
 import { colorMap } from "../services/tabs-service/index.ts"
+
+// Helper to get BrowserApiService instance
+const getBrowserApi = () => {
+  const program = Effect.gen(function* () {
+    return yield* BrowserApiService
+  })
+  return Effect.runSync(program.pipe(Effect.provide(ChromeApiServiceLive)))
+}
 
 export interface GroupedTabsProps {
   group: TabGroup
@@ -35,7 +47,10 @@ export function GroupedTabs({
   if (tabs.length === 0) return null
 
   const handleToggle = () => {
-    chrome.tabGroups.update(group.id, { collapsed: !group.collapsed })
+    const browserApi = getBrowserApi()
+    Effect.runPromise(
+      browserApi.tabGroups.update(group.id, { collapsed: !group.collapsed }),
+    )
   }
 
   const handleDragOver = (e: DragEvent) => {
@@ -53,7 +68,8 @@ export function GroupedTabs({
     e.stopPropagation()
     const tabIds: TabId[] = tabs.map((tab) => tab.id)
     if (tabIds.length > 0) {
-      chrome.tabs.remove(tabIds)
+      const browserApi = getBrowserApi()
+      Effect.runPromise(browserApi.tabs.remove(tabIds))
     }
   }
 

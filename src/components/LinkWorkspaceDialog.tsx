@@ -1,6 +1,18 @@
 import { useEffect, useState } from "preact/hooks"
 import { Effect } from "effect"
+import {
+  BrowserApiService,
+  ChromeApiServiceLive,
+} from "../services/browser-api-service/index.ts"
 import { getBookmarksBar } from "../services/workspaces-service/index.ts"
+
+// Helper to get BrowserApiService instance
+const getBrowserApi = () => {
+  const program = Effect.gen(function* () {
+    return yield* BrowserApiService
+  })
+  return Effect.runSync(program.pipe(Effect.provide(ChromeApiServiceLive)))
+}
 
 export interface LinkWorkspaceDialogProps {
   windowId: number
@@ -18,8 +30,13 @@ export function LinkWorkspaceDialog({
   >([])
 
   useEffect(() => {
+    const browserApi = getBrowserApi()
     Effect.runPromise(getBookmarksBar).then((bookmarksBar) => {
-      chrome.bookmarks.getChildren(bookmarksBar.id, (children) => {
+      Effect.runPromise(
+        browserApi.bookmarks.getChildren(bookmarksBar.id).pipe(
+          Effect.catchAll(() => Effect.succeed([])),
+        ),
+      ).then((children) => {
         setWorkspaces(children.filter((child) => !child.url))
       })
     })

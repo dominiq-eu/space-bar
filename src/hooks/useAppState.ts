@@ -1,11 +1,23 @@
 import { useEffect, useState } from "preact/hooks"
 import { Effect, Option } from "effect"
+import {
+  BrowserApiService,
+  ChromeApiServiceLive,
+} from "../services/browser-api-service/index.ts"
 import type { AppState, WindowId } from "../services/state-service/types.ts"
 import { createAppState } from "../services/state-service/index.ts"
 import {
   STORAGE_KEY_WINDOW_WORKSPACE_MAP,
   unlinkWindow,
 } from "../services/storage-service/index.ts"
+
+// Helper to get BrowserApiService instance
+const getBrowserApi = () => {
+  const program = Effect.gen(function* () {
+    return yield* BrowserApiService
+  })
+  return Effect.runSync(program.pipe(Effect.provide(ChromeApiServiceLive)))
+}
 
 export function useAppState() {
   const [state, setState] = useState<AppState | null>(null)
@@ -37,6 +49,8 @@ export function useAppState() {
 
   useEffect(() => {
     loadState()
+
+    const browserApi = getBrowserApi()
 
     // --- Incremental Update Handlers ---
 
@@ -125,26 +139,6 @@ export function useAppState() {
 
     const onBookmarksChanged = () => loadStateDebounced()
 
-    // Register Listeners
-    chrome.tabs.onUpdated.addListener(onTabUpdated)
-    chrome.tabs.onCreated.addListener(onTabCreated)
-    chrome.tabs.onRemoved.addListener(onTabRemoved)
-    chrome.tabs.onMoved.addListener(onTabMoved)
-    chrome.tabs.onAttached.addListener(onTabAttached)
-    chrome.tabs.onDetached.addListener(onTabDetached)
-
-    chrome.tabGroups.onUpdated.addListener(onTabGroupUpdated)
-    chrome.tabGroups.onCreated.addListener(onTabGroupCreated)
-    chrome.tabGroups.onRemoved.addListener(onTabGroupRemoved)
-
-    chrome.windows.onCreated.addListener(onWindowCreated)
-    chrome.windows.onRemoved.addListener(onWindowRemoved)
-    chrome.windows.onFocusChanged.addListener(onWindowFocusChanged)
-
-    chrome.bookmarks.onCreated.addListener(onBookmarksChanged)
-    chrome.bookmarks.onRemoved.addListener(onBookmarksChanged)
-    chrome.bookmarks.onChanged.addListener(onBookmarksChanged)
-
     const onStorageChanged = (
       changes: Record<string, chrome.storage.StorageChange>,
     ) => {
@@ -152,26 +146,67 @@ export function useAppState() {
         loadStateDebounced()
       }
     }
-    chrome.storage.onChanged.addListener(onStorageChanged)
+
+    // Register Listeners using BrowserApiService
+    const cleanupTabUpdated = browserApi.events.onTabUpdated(onTabUpdated)
+    const cleanupTabCreated = browserApi.events.onTabCreated(onTabCreated)
+    const cleanupTabRemoved = browserApi.events.onTabRemoved(onTabRemoved)
+    const cleanupTabMoved = browserApi.events.onTabMoved(onTabMoved)
+    const cleanupTabAttached = browserApi.events.onTabAttached(onTabAttached)
+    const cleanupTabDetached = browserApi.events.onTabDetached(onTabDetached)
+
+    const cleanupTabGroupUpdated = browserApi.events.onTabGroupUpdated(
+      onTabGroupUpdated,
+    )
+    const cleanupTabGroupCreated = browserApi.events.onTabGroupCreated(
+      onTabGroupCreated,
+    )
+    const cleanupTabGroupRemoved = browserApi.events.onTabGroupRemoved(
+      onTabGroupRemoved,
+    )
+
+    const cleanupWindowCreated = browserApi.events.onWindowCreated(
+      onWindowCreated,
+    )
+    const cleanupWindowRemoved = browserApi.events.onWindowRemoved(
+      onWindowRemoved,
+    )
+    const cleanupWindowFocusChanged = browserApi.events.onWindowFocusChanged(
+      onWindowFocusChanged,
+    )
+
+    const cleanupBookmarkCreated = browserApi.events.onBookmarkCreated(
+      onBookmarksChanged,
+    )
+    const cleanupBookmarkRemoved = browserApi.events.onBookmarkRemoved(
+      onBookmarksChanged,
+    )
+    const cleanupBookmarkChanged = browserApi.events.onBookmarkChanged(
+      onBookmarksChanged,
+    )
+
+    const cleanupStorageChanged = browserApi.events.onStorageChanged(
+      onStorageChanged,
+    )
 
     return () => {
       loadStateDebounced.cancel()
-      chrome.tabs.onUpdated.removeListener(onTabUpdated)
-      chrome.tabs.onCreated.removeListener(onTabCreated)
-      chrome.tabs.onRemoved.removeListener(onTabRemoved)
-      chrome.tabs.onMoved.removeListener(onTabMoved)
-      chrome.tabs.onAttached.removeListener(onTabAttached)
-      chrome.tabs.onDetached.removeListener(onTabDetached)
-      chrome.tabGroups.onUpdated.removeListener(onTabGroupUpdated)
-      chrome.tabGroups.onCreated.removeListener(onTabGroupCreated)
-      chrome.tabGroups.onRemoved.removeListener(onTabGroupRemoved)
-      chrome.windows.onCreated.removeListener(onWindowCreated)
-      chrome.windows.onRemoved.removeListener(onWindowRemoved)
-      chrome.windows.onFocusChanged.removeListener(onWindowFocusChanged)
-      chrome.bookmarks.onCreated.removeListener(onBookmarksChanged)
-      chrome.bookmarks.onRemoved.removeListener(onBookmarksChanged)
-      chrome.bookmarks.onChanged.removeListener(onBookmarksChanged)
-      chrome.storage.onChanged.removeListener(onStorageChanged)
+      cleanupTabUpdated()
+      cleanupTabCreated()
+      cleanupTabRemoved()
+      cleanupTabMoved()
+      cleanupTabAttached()
+      cleanupTabDetached()
+      cleanupTabGroupUpdated()
+      cleanupTabGroupCreated()
+      cleanupTabGroupRemoved()
+      cleanupWindowCreated()
+      cleanupWindowRemoved()
+      cleanupWindowFocusChanged()
+      cleanupBookmarkCreated()
+      cleanupBookmarkRemoved()
+      cleanupBookmarkChanged()
+      cleanupStorageChanged()
     }
   }, [])
 

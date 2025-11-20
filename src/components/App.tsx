@@ -1,6 +1,11 @@
 import { useEffect, useState } from "preact/hooks"
 import { Effect } from "effect"
 
+import {
+  BrowserApiService,
+  ChromeApiServiceLive,
+} from "../services/browser-api-service/index.ts"
+import { getCurrentWindow } from "../services/windows-service/index.ts"
 import { getBookmarksBar } from "../services/workspaces-service/index.ts"
 import { LinkWorkspaceDialog } from "./LinkWorkspaceDialog.tsx"
 import { WorkspaceBar } from "./WorkspaceBar.tsx"
@@ -9,6 +14,14 @@ import { WindowList } from "./WindowList.tsx"
 import { useAppState } from "../hooks/useAppState.ts"
 import { useSyncService } from "../hooks/useSyncService.ts"
 import type { Tab, TabGroup } from "../services/state-service/types.ts"
+
+// Helper to get BrowserApiService instance
+const getBrowserApi = () => {
+  const program = Effect.gen(function* () {
+    return yield* BrowserApiService
+  })
+  return Effect.runSync(program.pipe(Effect.provide(ChromeApiServiceLive)))
+}
 
 function AppContent() {
   const { state } = useAppState()
@@ -20,16 +33,24 @@ function AppContent() {
   const { linkWindow, windowWorkspaceMap } = useSyncService()
 
   const loadCurrentWindowId = () => {
-    chrome.windows.getCurrent((window) => {
-      if (window.id) {
+    Effect.runPromise(getCurrentWindow())
+      .then((window) => {
         setCurrentWindowId(window.id)
-      }
-    })
+      })
+      .catch(() => {
+        // Ignore errors
+      })
   }
 
   const loadWorkspaceNames = () => {
+    const browserApi = getBrowserApi()
+
     Effect.runPromise(getBookmarksBar).then((bookmarksBar) => {
-      chrome.bookmarks.getChildren(bookmarksBar.id, (children) => {
+      Effect.runPromise(
+        browserApi.bookmarks.getChildren(bookmarksBar.id).pipe(
+          Effect.catchAll(() => Effect.succeed([])),
+        ),
+      ).then((children) => {
         const names: Record<string, string> = {}
         children
           .filter((child) => !child.url)
@@ -55,18 +76,27 @@ function AppContent() {
     loadCurrentWindowId()
     loadWorkspaceNames()
 
+    const browserApi = getBrowserApi()
+
     // Listen for bookmark changes to update workspace names
     const onBookmarksChanged = () => {
       loadWorkspaceNames()
     }
-    chrome.bookmarks.onCreated.addListener(onBookmarksChanged)
-    chrome.bookmarks.onRemoved.addListener(onBookmarksChanged)
-    chrome.bookmarks.onChanged.addListener(onBookmarksChanged)
+
+    const cleanupBookmarkCreated = browserApi.events.onBookmarkCreated(
+      onBookmarksChanged,
+    )
+    const cleanupBookmarkRemoved = browserApi.events.onBookmarkRemoved(
+      onBookmarksChanged,
+    )
+    const cleanupBookmarkChanged = browserApi.events.onBookmarkChanged(
+      onBookmarksChanged,
+    )
 
     return () => {
-      chrome.bookmarks.onCreated.removeListener(onBookmarksChanged)
-      chrome.bookmarks.onRemoved.removeListener(onBookmarksChanged)
-      chrome.bookmarks.onChanged.removeListener(onBookmarksChanged)
+      cleanupBookmarkCreated()
+      cleanupBookmarkRemoved()
+      cleanupBookmarkChanged()
     }
   }, [])
 
