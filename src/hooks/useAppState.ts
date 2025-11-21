@@ -59,20 +59,22 @@ export function useAppState() {
       changeInfo: chrome.tabs.TabChangeInfo,
       _tab: chrome.tabs.Tab,
     ) => {
+      console.log(`Tab ${tabId} updated:`, changeInfo)
+
       // If URL changed, we need to reload to potentially resolve new bookmark title
       if (changeInfo.url) {
         loadStateDebounced()
         return
       }
 
-      // For other changes (status, title, favicon), update locally
+      // For other changes (status, title, favicon, pinned), update locally
       setState((prev) => {
         if (!prev) return null
         const updatedTabs = prev.tabs.map((t) => {
           if (t.id === tabId) {
             // Merge changes. Note: domain Tab has different structure than chrome.tabs.Tab
             // We need to be careful. Ideally we map the chrome tab to domain tab again.
-            // But for simple props like status/title/favIconUrl, we can just patch.
+            // But for simple props like status/title/favIconUrl/pinned, we can just patch.
             // Update favIconUrl if it changed
             let newFavIconUrl = t.favIconUrl
             if (changeInfo.favIconUrl !== undefined) {
@@ -83,11 +85,18 @@ export function useAppState() {
               }
             }
 
-            return {
+            const updatedTab = {
               ...t,
               title: changeInfo.title || t.title,
               favIconUrl: newFavIconUrl,
+              pinned: changeInfo.pinned !== undefined ? changeInfo.pinned : t.pinned,
             }
+
+            if (changeInfo.pinned !== undefined) {
+              console.log(`Tab ${tabId} pinned status updated from ${t.pinned} to ${updatedTab.pinned}`)
+            }
+
+            return updatedTab
           }
           return t
         })
@@ -96,6 +105,12 @@ export function useAppState() {
 
       // If title changed, we reload to be safe about bookmark titles
       if (changeInfo.title) {
+        loadStateDebounced()
+      }
+
+      // If pinned status changed, reload to move tab between sections
+      if (changeInfo.pinned !== undefined) {
+        console.log(`Pinned status changed for tab ${tabId}, triggering reload`)
         loadStateDebounced()
       }
     }

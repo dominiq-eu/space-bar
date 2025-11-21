@@ -236,9 +236,17 @@ export function TabItem({
   const handleTogglePin = () => {
     if (tab.id) {
       const browserApi = getBrowserApi()
+      const newPinnedState = !tab.pinned
       Effect.runPromise(
-        browserApi.tabs.update(tab.id, { pinned: !tab.pinned }),
+        browserApi.tabs.update(tab.id, { pinned: newPinnedState }),
       )
+        .then(() => {
+          console.log(`Tab ${tab.id} pinned state updated to: ${newPinnedState}`)
+        })
+        .catch((error) => {
+          console.error("Failed to toggle pin:", error)
+          alert(`Failed to ${newPinnedState ? "pin" : "unpin"} tab: ${error.message}`)
+        })
     }
     setContextMenu(null)
   }
