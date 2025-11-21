@@ -1,7 +1,10 @@
 import { render } from "preact"
-import { App } from "./components/App.tsx"
+import { App } from "./components/app.tsx"
 import "./input.css"
-import { runtimePromise, ServiceContext } from "./components/ServiceContext.tsx"
+import {
+  runtimePromise,
+  ServiceContext,
+} from "./components/service-context.tsx"
 
 runtimePromise.then(([syncService, dragDropService]) => {
   render(

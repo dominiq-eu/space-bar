@@ -1,8 +1,8 @@
 import type { Tab, TabGroup, Window } from "../services/state-service/types.ts"
 import type { DragData } from "./types.ts"
-import { TabItem } from "./TabItem.tsx"
-import { PinnedTabs } from "./PinnedTabs.tsx"
-import { GroupedTabs } from "./GroupedTabs.tsx"
+import { TabItem } from "./tab-item.tsx"
+import { PinnedTabs } from "./pinned-tabs.tsx"
+import { GroupedTabs } from "./grouped-tabs.tsx"
 import { isSome, optionContains } from "../utils/type-conversions.ts"
 
 export interface WindowSectionProps {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks"
 import { Effect, Fiber, Stream } from "effect"
-import { useServices } from "../components/ServiceContext.tsx"
+import { useServices } from "../components/service-context.tsx"
 
 export const useSyncService = () => {
   const { syncService } = useServices()

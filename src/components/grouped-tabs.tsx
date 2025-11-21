@@ -5,7 +5,7 @@ import {
 } from "../services/browser-api-service/index.ts"
 import type { Tab, TabGroup, TabId } from "../services/state-service/types.ts"
 import type { DragData } from "./types.ts"
-import { TabItem } from "./TabItem.tsx"
+import { TabItem } from "./tab-item.tsx"
 
 import { colorMap } from "../services/tabs-service/index.ts"
 

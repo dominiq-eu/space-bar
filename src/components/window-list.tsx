@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks"
 import type { Tab, TabGroup, Window } from "../services/state-service/types.ts"
-import { WindowSection } from "./WindowSection.tsx"
+import { WindowSection } from "./window-section.tsx"
 import { useDragDropService } from "../hooks/useDragDropService.ts"
 import { useSyncService } from "../hooks/useSyncService.ts"
 import { DragData } from "./types.ts"

@@ -1,6 +1,6 @@
 import type { Tab, TabGroup } from "../services/state-service/types.ts"
 import type { DragData } from "./types.ts"
-import { TabItem } from "./TabItem.tsx"
+import { TabItem } from "./tab-item.tsx"
 
 export interface PinnedTabsProps {
   tabs: Tab[]

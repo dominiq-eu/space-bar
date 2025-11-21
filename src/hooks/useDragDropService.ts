@@ -5,7 +5,7 @@ import {
   DragType,
   initialDragState,
 } from "../services/drag-drop-service/index.ts"
-import { useServices } from "../components/ServiceContext.tsx"
+import { useServices } from "../components/service-context.tsx"
 import type { Tab, TabGroup } from "../services/state-service/types.ts"
 
 export const useDragDropService = () => {
