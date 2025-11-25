@@ -72,43 +72,74 @@ export function createGroupTitle(
 }
 
 /**
- * Parse pinned status from bookmark title
- * Format: [pinned] Title
+ * Parse pinned and renamed status from bookmark title
+ * Format: [pinned][*] Title or [pinned] Title or [*] Title
  *
- * @returns { pinned: boolean, title: string } - Whether the tab is pinned and the clean title
+ * @returns { pinned: boolean, renamed: boolean, title: string } - Status and clean title
  *
  * @example
+ * parseBookmarkPinnedStatus("[pinned][*] My Custom Name")
+ * // Returns: { pinned: true, renamed: true, title: "My Custom Name" }
+ *
+ * parseBookmarkPinnedStatus("[*] My Custom Name")
+ * // Returns: { pinned: false, renamed: true, title: "My Custom Name" }
+ *
  * parseBookmarkPinnedStatus("[pinned] GitHub")
- * // Returns: { pinned: true, title: "GitHub" }
+ * // Returns: { pinned: true, renamed: false, title: "GitHub" }
  *
  * parseBookmarkPinnedStatus("GitHub")
- * // Returns: { pinned: false, title: "GitHub" }
+ * // Returns: { pinned: false, renamed: false, title: "GitHub" }
  */
 export function parseBookmarkPinnedStatus(bookmarkTitle: string): {
   pinned: boolean
+  renamed: boolean
   title: string
 } {
-  const pinnedMatch = bookmarkTitle.match(/^\[pinned\]\s*/)
+  const pinnedMatch = bookmarkTitle.match(/\[pinned\]/)
   const isPinned = pinnedMatch !== null
 
-  const cleanTitle = bookmarkTitle.replace(/^\[pinned\]\s*/, "").trim()
+  const renamedMatch = bookmarkTitle.match(/\[\*\]/)
+  const isRenamed = renamedMatch !== null
+
+  const cleanTitle = bookmarkTitle
+    .replace(/\[pinned\]/, "")
+    .replace(/\[\*\]/, "")
+    .trim()
 
   return {
     pinned: isPinned,
+    renamed: isRenamed,
     title: cleanTitle,
   }
 }
 
 /**
- * Create bookmark title with pinned metadata
+ * Create bookmark title with pinned and renamed metadata
  *
  * @example
- * createBookmarkTitle("GitHub", true)
+ * createBookmarkTitle("GitHub", true, false)
  * // Returns: "[pinned] GitHub"
  *
- * createBookmarkTitle("GitHub", false)
+ * createBookmarkTitle("My Custom Name", false, true)
+ * // Returns: "[*] My Custom Name"
+ *
+ * createBookmarkTitle("My Custom Name", true, true)
+ * // Returns: "[pinned][*] My Custom Name"
+ *
+ * createBookmarkTitle("GitHub", false, false)
  * // Returns: "GitHub"
  */
-export function createBookmarkTitle(title: string, pinned: boolean): string {
-  return pinned ? `[pinned] ${title}` : title
+export function createBookmarkTitle(
+  title: string,
+  pinned: boolean,
+  renamed: boolean = false,
+): string {
+  const pinnedMarker = pinned ? "[pinned]" : ""
+  const renamedMarker = renamed ? "[*]" : ""
+
+  if (pinnedMarker || renamedMarker) {
+    return `${pinnedMarker}${renamedMarker} ${title}`
+  }
+
+  return title
 }

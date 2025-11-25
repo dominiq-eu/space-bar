@@ -509,6 +509,26 @@ const make = Effect.sync(() => {
             }
           })
         }),
+
+      move: (id: string, destination: chrome.bookmarks.BookmarkDestinationArg) =>
+        Effect.async<chrome.bookmarks.BookmarkTreeNode, BookmarkOperationError>((resume) => {
+          chrome.bookmarks.move(id, destination, (result) => {
+            if (chrome.runtime.lastError) {
+              resume(
+                Effect.fail(
+                  new BookmarkOperationError({
+                    operation: "move",
+                    reason: chrome.runtime.lastError.message ||
+                      "Unknown error",
+                    bookmarkId: id,
+                  }),
+                ),
+              )
+            } else {
+              resume(Effect.succeed(result))
+            }
+          })
+        }),
     },
 
     // ========================================================================

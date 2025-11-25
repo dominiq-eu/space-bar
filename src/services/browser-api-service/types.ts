@@ -358,6 +358,17 @@ export interface BrowserApiService {
     readonly removeTree: (
       id: string,
     ) => Effect.Effect<void, BookmarkOperationError>
+
+    /**
+     * Move a bookmark to a new parent or index
+     */
+    readonly move: (
+      id: string,
+      destination: chrome.bookmarks.BookmarkDestinationArg,
+    ) => Effect.Effect<
+      chrome.bookmarks.BookmarkTreeNode,
+      BookmarkOperationError
+    >
   }
 
   // ==========================================================================

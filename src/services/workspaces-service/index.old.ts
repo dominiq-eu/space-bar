@@ -960,6 +960,10 @@ export const renameTabBookmark = (
 
     const workspaceId = workspaceIdOption.value
 
+    // Note: Chrome tab titles cannot be changed via API - they are set by the website.
+    // We only update the bookmark with [*] marker to indicate it's been renamed.
+    // The sidepanel will display the renamed bookmark title instead of the tab title.
+
     // Get workspace bookmark tree
     const workspaceTree = yield* Effect.async<
       chrome.bookmarks.BookmarkTreeNode[],
@@ -985,8 +989,8 @@ export const renameTabBookmark = (
       )
     }
 
-    // Create bookmark title with [pinned] prefix if needed
-    const bookmarkTitle = createBookmarkTitle(newTitle, isPinned)
+    // ✅ FIX: Create bookmark title with [*] renamed marker
+    const bookmarkTitle = createBookmarkTitle(newTitle, isPinned, true)
 
     // Update bookmark title
     yield* Effect.async<void, Error>((resume) => {

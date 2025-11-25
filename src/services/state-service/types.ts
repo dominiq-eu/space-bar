@@ -89,11 +89,16 @@ export type WindowType = Schema.Schema.Type<typeof WindowType>
  * All fields are ALWAYS present (no optional!)
  * Uses Option<T> for truly optional values (favIconUrl, groupId)
  * Uses Effect's built-in URL Schema for validated URLs
+ *
+ * Title resolution:
+ * - If tab's URL has a linked bookmark with [*] marker → uses bookmark title
+ * - Otherwise → uses Chrome's tab title
+ * This is handled transparently in mapChromeTab() via bookmarkTitleMap
  */
 export const Tab = Schema.Struct({
   id: TabId,
   windowId: WindowId,
-  title: Schema.String.pipe(Schema.minLength(1)),
+  title: Schema.String.pipe(Schema.minLength(1)), // Tab title (bookmark title if renamed, otherwise Chrome title)
   url: Schema.URL, // 🔥 Effect's built-in URL Schema!
   favIconUrl: Schema.OptionFromSelf(Schema.URL), // Option<URL>
   active: Schema.Boolean,
