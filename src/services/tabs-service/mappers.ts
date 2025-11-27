@@ -1,17 +1,11 @@
 import { Effect, Option, Schema } from "effect"
-import {
-  GroupId,
-  Tab,
-  TabChanges,
-  TabGroup,
-  TabId,
-  WindowId,
-} from "../state-service/types.ts"
+import { Tab, TabChanges, TabGroup } from "../state-service/schema.ts"
 import {
   InvalidGroupDataError,
   InvalidTabDataError,
   InvalidTabUrlError,
 } from "./errors.ts"
+import { InvalidIdError, Validators } from "../validation-service/index.ts"
 
 /**
  * Browser-specific URL schemes that aren't valid HTTP URLs
@@ -95,7 +89,10 @@ function parseTabUrl(
 export function mapChromeTab(
   chromeTab: chrome.tabs.Tab,
   bookmarkTitleMap?: Map<string, string>,
-): Effect.Effect<Tab, InvalidTabDataError | InvalidTabUrlError> {
+): Effect.Effect<
+  Tab,
+  InvalidTabDataError | InvalidTabUrlError | InvalidIdError
+> {
   return Effect.gen(function* () {
     // Validate required fields
     if (chromeTab.id === undefined || chromeTab.windowId === undefined) {
@@ -123,17 +120,24 @@ export function mapChromeTab(
     const urlString = url.href
     const title = bookmarkTitleMap?.get(urlString) ?? browserTitle
 
-    // Build Tab - no need to Schema.decode since we already have validated types
+    // Validate IDs with Schema before branding
+    const tabId = yield* Validators.tabId(chromeTab.id)
+    const windowId = yield* Validators.windowId(chromeTab.windowId)
+
+    // Validate groupId if present
+    const groupId = chromeTab.groupId !== undefined && chromeTab.groupId !== -1
+      ? yield* Validators.groupIdOptional(chromeTab.groupId)
+      : Option.none()
+
+    // Build Tab with validated IDs
     const tab: Tab = {
-      id: chromeTab.id as TabId,
-      windowId: chromeTab.windowId as WindowId,
+      id: tabId,
+      windowId: windowId,
       title,
       url,
       favIconUrl,
       active: chromeTab.active ?? false,
-      groupId: chromeTab.groupId !== undefined && chromeTab.groupId !== -1
-        ? Option.some(chromeTab.groupId as GroupId)
-        : Option.none(),
+      groupId,
       pinned: chromeTab.pinned ?? false,
     }
 
@@ -186,7 +190,7 @@ export function mapChromeTabs(
  */
 export function mapChromeTabGroup(
   chromeGroup: chrome.tabGroups.TabGroup,
-): Effect.Effect<TabGroup, InvalidGroupDataError> {
+): Effect.Effect<TabGroup, InvalidGroupDataError | InvalidIdError> {
   return Effect.gen(function* () {
     // Validate ID
     if (chromeGroup.id === undefined) {
@@ -198,9 +202,12 @@ export function mapChromeTabGroup(
       )
     }
 
-    // Build TabGroup - no need to Schema.decode since we already have the right types
+    // Validate ID with Schema before branding
+    const groupId = yield* Validators.groupId(chromeGroup.id)
+
+    // Build TabGroup with validated ID
     const group: TabGroup = {
-      id: chromeGroup.id as GroupId,
+      id: groupId,
       title: chromeGroup.title && chromeGroup.title.trim() !== ""
         ? Option.some(chromeGroup.title)
         : Option.none(),
@@ -276,7 +283,7 @@ export function mapTabChangeInfo(
 
     if (changeInfo.groupId !== undefined) {
       changes.groupId = changeInfo.groupId !== -1
-        ? Option.some(changeInfo.groupId as GroupId)
+        ? yield* Validators.groupIdOptional(changeInfo.groupId)
         : Option.none()
     }
 

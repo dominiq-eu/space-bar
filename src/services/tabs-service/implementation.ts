@@ -16,7 +16,7 @@ import type {
   TabGroupColor,
   TabId,
   WindowId,
-} from "../state-service/types.ts"
+} from "../state-service/schema.ts"
 import type { TabEventListener } from "./events.ts"
 import {
   mapChromeTab,
@@ -25,6 +25,8 @@ import {
   mapChromeTabs,
   mapTabChangeInfo,
 } from "./mappers.ts"
+import { Validators } from "../validation-service/index.ts"
+import { annotateOperation } from "../../utils/logging.ts"
 
 // ============================================================================
 // Service Implementation
@@ -45,10 +47,20 @@ const make = Effect.gen(function* () {
     Effect.gen(function* () {
       const chromeTabs = yield* browserApi.tabs.query({})
       const tabs = yield* mapChromeTabs(chromeTabs).pipe(
-        Effect.catchAll(() => Effect.succeed([])), // Return empty array on error
+        Effect.tapError((error) =>
+          Effect.logWarning(
+            "Some tabs failed validation, returning valid tabs only",
+            error,
+          ).pipe(
+            Effect.annotateLogs({ totalTabs: chromeTabs.length }),
+          )
+        ),
+        Effect.catchAll(() => Effect.succeed([])),
       )
       return tabs
-    })
+    }).pipe(
+      annotateOperation("TabsService", "getTabs"),
+    )
 
   /**
    * Get a single tab by ID
@@ -57,7 +69,10 @@ const make = Effect.gen(function* () {
     tabId: TabId,
   ): Effect.Effect<
     Tab,
-    TabNotFoundError | InvalidTabDataError | InvalidTabUrlError
+    | TabNotFoundError
+    | InvalidTabDataError
+    | InvalidTabUrlError
+    | import("../validation-service/index.ts").InvalidIdError
   > =>
     Effect.gen(function* () {
       const chromeTab = yield* browserApi.tabs.get(tabId).pipe(
@@ -74,17 +89,32 @@ const make = Effect.gen(function* () {
     Effect.gen(function* () {
       const chromeGroups = yield* browserApi.tabGroups.query({})
       const groups = yield* mapChromeTabGroups(chromeGroups).pipe(
-        Effect.catchAll(() => Effect.succeed([])), // Return empty array on error
+        Effect.tapError((error) =>
+          Effect.logWarning(
+            "Some tab groups failed validation, returning valid groups only",
+            error,
+          ).pipe(
+            Effect.annotateLogs({ totalGroups: chromeGroups.length }),
+          )
+        ),
+        Effect.catchAll(() => Effect.succeed([])),
       )
       return groups
-    })
+    }).pipe(
+      annotateOperation("TabsService", "getTabGroups"),
+    )
 
   /**
    * Get a single tab group by ID
    */
   const getTabGroup = (
     groupId: GroupId,
-  ): Effect.Effect<TabGroup, GroupNotFoundError | InvalidGroupDataError> =>
+  ): Effect.Effect<
+    TabGroup,
+    | GroupNotFoundError
+    | InvalidGroupDataError
+    | import("../validation-service/index.ts").InvalidIdError
+  > =>
     Effect.gen(function* () {
       const chromeGroup = yield* browserApi.tabGroups.get(groupId).pipe(
         Effect.mapError(() => new GroupNotFoundError({ groupId })),
@@ -108,7 +138,10 @@ const make = Effect.gen(function* () {
     pinned?: boolean
   }): Effect.Effect<
     Tab,
-    TabOperationFailedError | InvalidTabDataError | InvalidTabUrlError
+    | TabOperationFailedError
+    | InvalidTabDataError
+    | InvalidTabUrlError
+    | import("../validation-service/index.ts").InvalidIdError
   > =>
     Effect.gen(function* () {
       const chromeTab = yield* browserApi.tabs.create({
@@ -141,7 +174,10 @@ const make = Effect.gen(function* () {
     },
   ): Effect.Effect<
     Tab,
-    TabOperationFailedError | InvalidTabDataError | InvalidTabUrlError
+    | TabOperationFailedError
+    | InvalidTabDataError
+    | InvalidTabUrlError
+    | import("../validation-service/index.ts").InvalidIdError
   > =>
     Effect.gen(function* () {
       const chromeTab = yield* browserApi.tabs.update(tabId, options).pipe(
@@ -164,7 +200,10 @@ const make = Effect.gen(function* () {
     tabId: TabId,
   ): Effect.Effect<
     Tab,
-    TabOperationFailedError | InvalidTabDataError | InvalidTabUrlError
+    | TabOperationFailedError
+    | InvalidTabDataError
+    | InvalidTabUrlError
+    | import("../validation-service/index.ts").InvalidIdError
   > => updateTab(tabId, { active: true })
 
   /**
@@ -209,7 +248,10 @@ const make = Effect.gen(function* () {
     },
   ): Effect.Effect<
     Tab,
-    TabOperationFailedError | InvalidTabDataError | InvalidTabUrlError
+    | TabOperationFailedError
+    | InvalidTabDataError
+    | InvalidTabUrlError
+    | import("../validation-service/index.ts").InvalidIdError
   > =>
     Effect.gen(function* () {
       const result = yield* browserApi.tabs.move(tabId, {
@@ -242,19 +284,27 @@ const make = Effect.gen(function* () {
   const groupTabs = (options: {
     tabIds: TabId[]
     groupId?: GroupId
-  }): Effect.Effect<GroupId, TabOperationFailedError> =>
-    browserApi.tabs.group({
-      tabIds: options.tabIds,
-      groupId: options.groupId,
-    }).pipe(
-      Effect.map((groupId) => groupId as GroupId), // Cast to GroupId - Chrome API returns valid positive integer
-      Effect.mapError((error) =>
-        new TabOperationFailedError({
-          operation: "group",
-          reason: error.reason,
-        })
-      ),
-    )
+  }): Effect.Effect<
+    GroupId,
+    | TabOperationFailedError
+    | import("../validation-service/index.ts").InvalidIdError
+  > =>
+    Effect.gen(function* () {
+      const rawGroupId = yield* browserApi.tabs.group({
+        tabIds: options.tabIds,
+        groupId: options.groupId,
+      }).pipe(
+        Effect.mapError((error) =>
+          new TabOperationFailedError({
+            operation: "group",
+            reason: error.reason,
+          })
+        ),
+      )
+
+      // Validate the returned group ID
+      return yield* Validators.groupId(rawGroupId)
+    })
 
   /**
    * Ungroup tabs (remove from group)
@@ -281,7 +331,12 @@ const make = Effect.gen(function* () {
       color?: TabGroupColor
       collapsed?: boolean
     },
-  ): Effect.Effect<TabGroup, TabOperationFailedError | InvalidGroupDataError> =>
+  ): Effect.Effect<
+    TabGroup,
+    | TabOperationFailedError
+    | InvalidGroupDataError
+    | import("../validation-service/index.ts").InvalidIdError
+  > =>
     Effect.gen(function* () {
       const chromeGroup = yield* browserApi.tabGroups.update(groupId, options)
         .pipe(
@@ -302,8 +357,12 @@ const make = Effect.gen(function* () {
   const toggleGroupCollapsed = (
     groupId: GroupId,
     currentState: boolean,
-  ): Effect.Effect<TabGroup, TabOperationFailedError | InvalidGroupDataError> =>
-    updateTabGroup(groupId, { collapsed: !currentState })
+  ): Effect.Effect<
+    TabGroup,
+    | TabOperationFailedError
+    | InvalidGroupDataError
+    | import("../validation-service/index.ts").InvalidIdError
+  > => updateTabGroup(groupId, { collapsed: !currentState })
 
   // ==========================================================================
   // Event Subscription
@@ -318,15 +377,23 @@ const make = Effect.gen(function* () {
   ): () => void => {
     // Tab Created
     const onTabCreated = browserApi.events.onTabCreated((chromeTab) => {
-      Effect.runPromise(mapChromeTab(chromeTab))
+      Effect.runPromise(
+        mapChromeTab(chromeTab).pipe(
+          Effect.tapError((error) =>
+            Effect.logWarning("Failed to map created tab", error).pipe(
+              Effect.annotateLogs({ tabId: chromeTab.id }),
+            )
+          ),
+        ),
+      )
         .then((tab) => {
           listener({
             type: "tab-created" as const,
             tab,
           })
         })
-        .catch((error) => {
-          console.warn("Failed to map created tab:", error)
+        .catch(() => {
+          // Error already logged via tapError
         })
     })
 
@@ -338,7 +405,15 @@ const make = Effect.gen(function* () {
     ) => {
       if (chromeTab.windowId === undefined) return
 
-      Effect.runPromise(mapTabChangeInfo(changeInfo))
+      Effect.runPromise(
+        mapTabChangeInfo(changeInfo).pipe(
+          Effect.tapError((error) =>
+            Effect.logWarning("Failed to map tab changes", error).pipe(
+              Effect.annotateLogs({ tabId, windowId: chromeTab.windowId }),
+            )
+          ),
+        ),
+      )
         .then((changes) => {
           listener({
             type: "tab-updated" as const,
@@ -347,8 +422,8 @@ const make = Effect.gen(function* () {
             changes,
           })
         })
-        .catch((error) => {
-          console.warn("Failed to map tab changes:", error)
+        .catch(() => {
+          // Error already logged via tapError
         })
     })
 
@@ -488,9 +563,27 @@ const make = Effect.gen(function* () {
 // ============================================================================
 
 /**
+ * Base TabsService layer without dependencies provided.
+ * Use this for testing with mock dependencies.
+ */
+const TabsServiceLayer = Layer.effect(TabsService, make)
+
+/**
  * TabsService Live Layer
  *
  * Dependencies:
  * - BrowserApiService (for all Chrome API calls)
  */
-export const TabsServiceLive = Layer.effect(TabsService, make)
+export const TabsServiceLive = TabsServiceLayer
+
+/**
+ * TabsService layer for testing.
+ * Does NOT provide BrowserApiService - caller must provide it.
+ *
+ * Usage in tests:
+ * ```typescript
+ * const mockLayer = createMockBrowserApiService()
+ * const testLayer = TabsServiceTest.pipe(Layer.provide(mockLayer))
+ * ```
+ */
+export const TabsServiceTest = TabsServiceLayer

@@ -1,5 +1,8 @@
 import { Effect, Layer, SubscriptionRef } from "effect"
-import { BrowserApiService } from "../browser-api-service/index.ts"
+import {
+  BrowserApiService,
+  ChromeApiServiceLive,
+} from "../browser-api-service/index.ts"
 import { WorkspacesService } from "./types.ts"
 import { BookmarkNotFoundError, WorkspaceOperationError } from "./types.ts"
 import type {
@@ -7,13 +10,10 @@ import type {
   Tab,
   TabGroup,
   WindowId,
-  WorkspaceId,
-} from "../state-service/types.ts"
-import { createAppState } from "../state-service/index.ts"
-import {
-  linkWindowToWorkspace,
-  unlinkWindow,
-} from "../storage-service/index.ts"
+} from "../state-service/schema.ts"
+import { StateService, StateServiceLive } from "../state-service/index.ts"
+import { StorageService, StorageServiceLive } from "../storage-service/index.ts"
+import { Validators } from "../validation-service/index.ts"
 import {
   createBookmarkTitle,
   createGroupTitle,
@@ -27,6 +27,7 @@ import {
   optionContains,
   urlToString,
 } from "../../utils/type-conversions.ts"
+import { annotateOperation } from "../../utils/logging.ts"
 import {
   BATCH_DELAY_MS,
   BATCH_SIZE,
@@ -60,6 +61,7 @@ interface TabJob {
 
 const make = Effect.gen(function* () {
   const browserApi = yield* BrowserApiService
+  const storageService = yield* StorageService
 
   // State management with SubscriptionRef (replaces global variables)
   const isLoadingWorkspaceRef = yield* SubscriptionRef.make(false)
@@ -282,7 +284,12 @@ const make = Effect.gen(function* () {
       }
 
       return workspaceFolder
-    })
+    }).pipe(
+      annotateOperation("WorkspacesService", "saveWorkspace", {
+        workspaceName,
+        tabCount: state.tabs.length,
+      }),
+    )
 
   // ==========================================================================
   // Sync Workspace (Internal)
@@ -291,10 +298,19 @@ const make = Effect.gen(function* () {
   const syncWorkspaceInternal = (
     windowId: number,
     workspaceId: string,
-  ): Effect.Effect<void, WorkspaceOperationError> =>
+  ): Effect.Effect<void, WorkspaceOperationError, StateService> =>
     Effect.gen(function* () {
       // Get current state
-      const state = yield* createAppState()
+      const stateService = yield* StateService
+      const state = yield* stateService.createAppState.pipe(
+        Effect.mapError((error) =>
+          new WorkspaceOperationError({
+            operation: "sync",
+            reason: `Failed to load state: ${error._tag}`,
+            workspaceId,
+          })
+        ),
+      )
 
       // Get workspace bookmark
       const results = yield* browserApi.bookmarks.getSubTree(workspaceId).pipe(
@@ -463,6 +479,8 @@ const make = Effect.gen(function* () {
 
               // Perform the actual sync
               yield* syncWorkspaceInternal(windowId, workspaceId).pipe(
+                Effect.provide(StateServiceLive),
+                Effect.provide(ChromeApiServiceLive),
                 Effect.catchAll(() => Effect.succeed(undefined)),
               )
 
@@ -488,14 +506,22 @@ const make = Effect.gen(function* () {
     workspaceId: string,
     windowId: number,
     keepCurrentTabs: boolean = false,
-  ): Effect.Effect<void, WorkspaceOperationError> =>
+  ): Effect.Effect<
+    void,
+    | WorkspaceOperationError
+    | import("../validation-service/index.ts").InvalidIdError
+  > =>
     Effect.gen(function* () {
       // Set loading flag
       yield* SubscriptionRef.set(isLoadingWorkspaceRef, true)
 
+      // Validate IDs
+      const validatedWindowId = yield* Validators.windowId(windowId)
+      const validatedWorkspaceId = yield* Validators.workspaceId(workspaceId)
+
       try {
         // First, unlink the window from any existing workspace
-        yield* unlinkWindow(windowId as WindowId).pipe(
+        yield* storageService.unlinkWindow(validatedWindowId).pipe(
           Effect.catchAll(() => Effect.succeed(undefined)),
         )
 
@@ -641,9 +667,9 @@ const make = Effect.gen(function* () {
         }
 
         // Now link the window to the new workspace
-        yield* linkWindowToWorkspace(
-          windowId as WindowId,
-          workspaceId as WorkspaceId,
+        yield* storageService.linkWindowToWorkspace(
+          validatedWindowId,
+          validatedWorkspaceId,
         ).pipe(
           Effect.catchAll(() => Effect.succeed(undefined)),
         )
@@ -651,7 +677,12 @@ const make = Effect.gen(function* () {
         // Reset flag after loading is complete
         yield* SubscriptionRef.set(isLoadingWorkspaceRef, false)
       }
-    })
+    }).pipe(
+      annotateOperation("WorkspacesService", "loadWorkspaceInWindow", {
+        windowId,
+        workspaceId,
+      }),
+    )
 
   // ==========================================================================
   // Restore Workspace
@@ -661,7 +692,8 @@ const make = Effect.gen(function* () {
     workspaceId: string,
   ): Effect.Effect<
     chrome.windows.Window | undefined,
-    WorkspaceOperationError
+    | WorkspaceOperationError
+    | import("../validation-service/index.ts").InvalidIdError
   > =>
     Effect.gen(function* () {
       // Get workspace folder
@@ -686,10 +718,14 @@ const make = Effect.gen(function* () {
         return undefined
       }
 
+      // Validate IDs
+      const validatedWindowId = yield* Validators.windowId(windowId)
+      const validatedWorkspaceId = yield* Validators.workspaceId(workspaceId)
+
       // Link window to workspace
-      yield* linkWindowToWorkspace(
-        windowId as WindowId,
-        workspaceId as WorkspaceId,
+      yield* storageService.linkWindowToWorkspace(
+        validatedWindowId,
+        validatedWorkspaceId,
       ).pipe(
         Effect.catchAll(() => Effect.succeed(undefined)),
       )
@@ -803,7 +839,11 @@ const make = Effect.gen(function* () {
       }
 
       return newWindow
-    })
+    }).pipe(
+      annotateOperation("WorkspacesService", "restoreWorkspace", {
+        workspaceId,
+      }),
+    )
 
   // ==========================================================================
   // Delete Workspace
@@ -822,6 +862,9 @@ const make = Effect.gen(function* () {
           }),
         )
       ),
+      annotateOperation("WorkspacesService", "deleteWorkspace", {
+        workspaceId,
+      }),
     )
 
   // ==========================================================================
@@ -845,6 +888,10 @@ const make = Effect.gen(function* () {
           }),
         )
       ),
+      annotateOperation("WorkspacesService", "renameWorkspace", {
+        workspaceId,
+        newName,
+      }),
     )
 
   // ==========================================================================
@@ -858,13 +905,10 @@ const make = Effect.gen(function* () {
     isPinned: boolean,
   ): Effect.Effect<void, BookmarkNotFoundError> =>
     Effect.gen(function* () {
-      // Import to avoid circular dependency
-      const { getWorkspaceForWindow } = yield* Effect.promise(() =>
-        import("../storage-service/index.ts")
-      )
-
       // Get workspace for window
-      const workspaceIdOption = yield* getWorkspaceForWindow(windowId).pipe(
+      const workspaceIdOption = yield* storageService.getWorkspaceForWindow(
+        windowId,
+      ).pipe(
         Effect.catchAll(() => Effect.succeed(Option.none())),
       )
 
@@ -921,17 +965,21 @@ const make = Effect.gen(function* () {
             )
           ),
         )
-    })
+    }).pipe(
+      annotateOperation("WorkspacesService", "renameTabBookmark", {
+        windowId,
+        tabUrl,
+        newTitle,
+      }),
+    )
 
   // ==========================================================================
   // Is Loading Workspace
   // ==========================================================================
 
-  const isLoadingWorkspace = (): boolean => {
-    // Synchronous getter - read from ref
-    // Note: This uses runSync which is OK for reading SubscriptionRef
-    return Effect.runSync(SubscriptionRef.get(isLoadingWorkspaceRef))
-  }
+  const isLoadingWorkspace: Effect.Effect<boolean> = SubscriptionRef.get(
+    isLoadingWorkspaceRef,
+  )
 
   return {
     getBookmarksBar,
@@ -951,16 +999,33 @@ const make = Effect.gen(function* () {
 // ============================================================================
 
 /**
+ * Base WorkspacesService layer without dependencies provided.
+ * Use this for testing with mock dependencies.
+ */
+const WorkspacesServiceLayer = Layer.effect(WorkspacesService, make)
+
+/**
  * WorkspacesService Live Layer
  *
  * Dependencies:
  * - BrowserApiService (for all Chrome API calls)
- *
- * Note: This service also depends on state-service and storage-service,
- * but those are imported directly until they are refactored to use the
- * Layer pattern.
+ * - StorageService (for window-workspace mappings)
  */
-export const WorkspacesServiceLive = Layer.effect(
-  WorkspacesService,
-  make,
+export const WorkspacesServiceLive = WorkspacesServiceLayer.pipe(
+  Layer.provide(StorageServiceLive),
 )
+
+/**
+ * WorkspacesService layer for testing.
+ * Does NOT provide BrowserApiService or StorageService - caller must provide them.
+ *
+ * Usage in tests:
+ * ```typescript
+ * const mockBrowserApi = createMockBrowserApiService()
+ * const storageLayer = StorageServiceTest.pipe(Layer.provide(mockBrowserApi))
+ * const testLayer = WorkspacesServiceTest.pipe(
+ *   Layer.provide(Layer.mergeAll(storageLayer, mockBrowserApi))
+ * )
+ * ```
+ */
+export const WorkspacesServiceTest = WorkspacesServiceLayer

@@ -6,7 +6,7 @@ import type {
   TabGroupColor,
   TabId,
   WindowId,
-} from "../state-service/types.ts"
+} from "../state-service/schema.ts"
 
 // Re-export error types
 export {
@@ -78,6 +78,7 @@ export interface TabsService {
     | import("./errors.ts").TabNotFoundError
     | import("./errors.ts").InvalidTabDataError
     | import("./errors.ts").InvalidTabUrlError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   /**
@@ -97,6 +98,7 @@ export interface TabsService {
     TabGroup,
     | import("./errors.ts").GroupNotFoundError
     | import("./errors.ts").InvalidGroupDataError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   // ==========================================================================
@@ -118,6 +120,7 @@ export interface TabsService {
     | import("./errors.ts").TabOperationFailedError
     | import("./errors.ts").InvalidTabDataError
     | import("./errors.ts").InvalidTabUrlError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   /**
@@ -135,6 +138,7 @@ export interface TabsService {
     | import("./errors.ts").TabOperationFailedError
     | import("./errors.ts").InvalidTabDataError
     | import("./errors.ts").InvalidTabUrlError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   /**
@@ -147,6 +151,7 @@ export interface TabsService {
     | import("./errors.ts").TabOperationFailedError
     | import("./errors.ts").InvalidTabDataError
     | import("./errors.ts").InvalidTabUrlError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   /**
@@ -177,6 +182,7 @@ export interface TabsService {
     | import("./errors.ts").TabOperationFailedError
     | import("./errors.ts").InvalidTabDataError
     | import("./errors.ts").InvalidTabUrlError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   // ==========================================================================
@@ -192,7 +198,11 @@ export interface TabsService {
   readonly groupTabs: (options: {
     tabIds: TabId[]
     groupId?: GroupId
-  }) => Effect.Effect<GroupId, import("./errors.ts").TabOperationFailedError>
+  }) => Effect.Effect<
+    GroupId,
+    | import("./errors.ts").TabOperationFailedError
+    | import("../validation-service/index.ts").InvalidIdError
+  >
 
   /**
    * Ungroup tabs (remove from their group)
@@ -215,6 +225,7 @@ export interface TabsService {
     TabGroup,
     | import("./errors.ts").TabOperationFailedError
     | import("./errors.ts").InvalidGroupDataError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   /**
@@ -227,6 +238,7 @@ export interface TabsService {
     TabGroup,
     | import("./errors.ts").TabOperationFailedError
     | import("./errors.ts").InvalidGroupDataError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   // ==========================================================================

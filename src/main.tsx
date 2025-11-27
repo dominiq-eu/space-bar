@@ -1,14 +1,14 @@
 import { render } from "preact"
 import { App } from "./components/app.tsx"
-import "./input.css"
 import {
   runtimePromise,
   ServiceContext,
 } from "./components/service-context.tsx"
 
-runtimePromise.then(([syncService, dragDropService]) => {
+// Initialize all services, then render the app
+runtimePromise.then((services) => {
   render(
-    <ServiceContext.Provider value={{ syncService, dragDropService }}>
+    <ServiceContext.Provider value={services}>
       <App />
     </ServiceContext.Provider>,
     document.getElementById("app")!,

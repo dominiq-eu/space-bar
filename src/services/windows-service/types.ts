@@ -1,5 +1,5 @@
 import { Context, Effect } from "effect"
-import type { Window, WindowId } from "../state-service/types.ts"
+import type { Window, WindowId } from "../state-service/schema.ts"
 
 // Re-export error types
 export {
@@ -58,6 +58,7 @@ export interface WindowsService {
     Window,
     | import("./errors.ts").WindowNotFoundError
     | import("./errors.ts").InvalidWindowDataError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   /**
@@ -68,6 +69,7 @@ export interface WindowsService {
     Window,
     | import("./errors.ts").WindowNotFoundError
     | import("./errors.ts").InvalidWindowDataError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   // ==========================================================================
@@ -87,6 +89,7 @@ export interface WindowsService {
     Window,
     | import("./errors.ts").WindowOperationFailedError
     | import("./errors.ts").InvalidWindowDataError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   /**
@@ -103,6 +106,7 @@ export interface WindowsService {
     Window,
     | import("./errors.ts").WindowOperationFailedError
     | import("./errors.ts").InvalidWindowDataError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   /**
@@ -114,6 +118,7 @@ export interface WindowsService {
     Window,
     | import("./errors.ts").WindowOperationFailedError
     | import("./errors.ts").InvalidWindowDataError
+    | import("../validation-service/index.ts").InvalidIdError
   >
 
   /**

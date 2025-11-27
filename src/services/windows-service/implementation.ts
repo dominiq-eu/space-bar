@@ -1,4 +1,4 @@
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Schema } from "effect"
 import { BrowserApiService } from "../browser-api-service/index.ts"
 import { WindowsService } from "./types.ts"
 import {
@@ -6,9 +6,11 @@ import {
   WindowNotFoundError,
   WindowOperationFailedError,
 } from "./errors.ts"
-import type { Window, WindowId } from "../state-service/types.ts"
+import type { Window, WindowId } from "../state-service/schema.ts"
 import type { WindowEventListener } from "./events.ts"
 import { mapChromeWindow, mapChromeWindows } from "./mappers.ts"
+import { WindowId as WindowIdSchema } from "../state-service/schema.ts"
+import { annotateOperation } from "../../utils/logging.ts"
 
 // ============================================================================
 // Service Implementation
@@ -29,17 +31,32 @@ const make = Effect.gen(function* () {
     Effect.gen(function* () {
       const chromeWindows = yield* browserApi.windows.getAll({})
       const windows = yield* mapChromeWindows(chromeWindows).pipe(
-        Effect.catchAll(() => Effect.succeed([])), // Return empty on error
+        Effect.tapError((error) =>
+          Effect.logWarning(
+            "Some windows failed validation, returning valid windows only",
+            error,
+          ).pipe(
+            Effect.annotateLogs({ totalWindows: chromeWindows.length }),
+          )
+        ),
+        Effect.catchAll(() => Effect.succeed([])),
       )
       return windows
-    })
+    }).pipe(
+      annotateOperation("WindowsService", "getWindows"),
+    )
 
   /**
    * Get a specific window by ID
    */
   const getWindow = (
     windowId: WindowId,
-  ): Effect.Effect<Window, WindowNotFoundError | InvalidWindowDataError> =>
+  ): Effect.Effect<
+    Window,
+    | WindowNotFoundError
+    | InvalidWindowDataError
+    | import("../validation-service/index.ts").InvalidIdError
+  > =>
     Effect.gen(function* () {
       const chromeWindow = yield* browserApi.windows.get(windowId).pipe(
         Effect.mapError(() => new WindowNotFoundError({ windowId })),
@@ -53,13 +70,13 @@ const make = Effect.gen(function* () {
    */
   const getCurrentWindow = (): Effect.Effect<
     Window,
-    WindowNotFoundError | InvalidWindowDataError
+    | WindowNotFoundError
+    | InvalidWindowDataError
+    | import("../validation-service/index.ts").InvalidIdError
   > =>
     Effect.gen(function* () {
       const chromeWindow = yield* browserApi.windows.getCurrent().pipe(
-        Effect.mapError(() =>
-          new WindowNotFoundError({ windowId: -1 as WindowId })
-        ),
+        Effect.mapError(() => new WindowNotFoundError({ windowId: -1 })),
       )
       return yield* mapChromeWindow(chromeWindow)
     })
@@ -79,7 +96,9 @@ const make = Effect.gen(function* () {
     type?: "normal" | "popup" | "panel"
   }): Effect.Effect<
     Window,
-    WindowOperationFailedError | InvalidWindowDataError
+    | WindowOperationFailedError
+    | InvalidWindowDataError
+    | import("../validation-service/index.ts").InvalidIdError
   > =>
     Effect.gen(function* () {
       const chromeWindow = yield* browserApi.windows.create(options ?? {})
@@ -107,7 +126,9 @@ const make = Effect.gen(function* () {
     },
   ): Effect.Effect<
     Window,
-    WindowOperationFailedError | InvalidWindowDataError
+    | WindowOperationFailedError
+    | InvalidWindowDataError
+    | import("../validation-service/index.ts").InvalidIdError
   > =>
     Effect.gen(function* () {
       const chromeWindow = yield* browserApi.windows.update(
@@ -133,7 +154,9 @@ const make = Effect.gen(function* () {
     windowId: WindowId,
   ): Effect.Effect<
     Window,
-    WindowOperationFailedError | InvalidWindowDataError
+    | WindowOperationFailedError
+    | InvalidWindowDataError
+    | import("../validation-service/index.ts").InvalidIdError
   > => updateWindow(windowId, { focused: true })
 
   /**
@@ -167,20 +190,41 @@ const make = Effect.gen(function* () {
     const onWindowCreated = browserApi.events.onWindowCreated(
       (chromeWindow) => {
         if (chromeWindow.id !== undefined) {
-          listener({
-            type: "window-created" as const,
-            windowId: chromeWindow.id as WindowId,
-          })
+          try {
+            const validatedWindowId = Schema.decodeSync(WindowIdSchema)(
+              chromeWindow.id,
+            )
+            listener({
+              type: "window-created" as const,
+              windowId: validatedWindowId,
+            })
+          } catch (error) {
+            Effect.runFork(
+              Effect.logWarning("Invalid window ID in onWindowCreated", error)
+                .pipe(
+                  Effect.annotateLogs({ windowId: chromeWindow.id }),
+                ),
+            )
+          }
         }
       },
     )
 
     // Window Removed
     const onWindowRemoved = browserApi.events.onWindowRemoved((windowId) => {
-      listener({
-        type: "window-removed" as const,
-        windowId: windowId as WindowId,
-      })
+      try {
+        const validatedWindowId = Schema.decodeSync(WindowIdSchema)(windowId)
+        listener({
+          type: "window-removed" as const,
+          windowId: validatedWindowId,
+        })
+      } catch (error) {
+        Effect.runFork(
+          Effect.logWarning("Invalid window ID in onWindowRemoved", error).pipe(
+            Effect.annotateLogs({ windowId }),
+          ),
+        )
+      }
     })
 
     // Window Focus Changed
@@ -188,10 +232,24 @@ const make = Effect.gen(function* () {
       (windowId) => {
         // windowId can be -1 when no window has focus
         if (windowId !== -1) {
-          listener({
-            type: "window-focus-changed" as const,
-            windowId: windowId as WindowId,
-          })
+          try {
+            const validatedWindowId = Schema.decodeSync(WindowIdSchema)(
+              windowId,
+            )
+            listener({
+              type: "window-focus-changed" as const,
+              windowId: validatedWindowId,
+            })
+          } catch (error) {
+            Effect.runFork(
+              Effect.logWarning(
+                "Invalid window ID in onWindowFocusChanged",
+                error,
+              ).pipe(
+                Effect.annotateLogs({ windowId }),
+              ),
+            )
+          }
         }
       },
     )
@@ -221,9 +279,27 @@ const make = Effect.gen(function* () {
 // ============================================================================
 
 /**
+ * Base WindowsService layer without dependencies provided.
+ * Use this for testing with mock dependencies.
+ */
+const WindowsServiceLayer = Layer.effect(WindowsService, make)
+
+/**
  * WindowsService Live Layer
  *
  * Dependencies:
  * - BrowserApiService (for all Chrome API calls)
  */
-export const WindowsServiceLive = Layer.effect(WindowsService, make)
+export const WindowsServiceLive = WindowsServiceLayer
+
+/**
+ * WindowsService layer for testing.
+ * Does NOT provide BrowserApiService - caller must provide it.
+ *
+ * Usage in tests:
+ * ```typescript
+ * const mockLayer = createMockBrowserApiService()
+ * const testLayer = WindowsServiceTest.pipe(Layer.provide(mockLayer))
+ * ```
+ */
+export const WindowsServiceTest = WindowsServiceLayer

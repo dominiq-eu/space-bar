@@ -1,5 +1,5 @@
 import { Context, Data, Effect } from "effect"
-import type { AppState, WindowId } from "../state-service/types.ts"
+import type { AppState, WindowId } from "../state-service/schema.ts"
 
 // ============================================================================
 // Error Types
@@ -96,7 +96,11 @@ export interface WorkspacesService {
     workspaceId: string,
     windowId: number,
     keepCurrentTabs?: boolean,
-  ) => Effect.Effect<void, WorkspaceOperationError>
+  ) => Effect.Effect<
+    void,
+    | WorkspaceOperationError
+    | import("../validation-service/index.ts").InvalidIdError
+  >
 
   /**
    * Restore workspace in a new window
@@ -107,7 +111,11 @@ export interface WorkspacesService {
    */
   readonly restoreWorkspace: (
     workspaceId: string,
-  ) => Effect.Effect<chrome.windows.Window | undefined, WorkspaceOperationError>
+  ) => Effect.Effect<
+    chrome.windows.Window | undefined,
+    | WorkspaceOperationError
+    | import("../validation-service/index.ts").InvalidIdError
+  >
 
   /**
    * Delete a workspace
@@ -154,9 +162,9 @@ export interface WorkspacesService {
    * Check if a workspace is currently being loaded
    * This prevents sync loops during workspace restoration
    *
-   * @returns true if a workspace is being loaded, false otherwise
+   * @returns Effect that yields true if a workspace is being loaded, false otherwise
    */
-  readonly isLoadingWorkspace: () => boolean
+  readonly isLoadingWorkspace: Effect.Effect<boolean>
 }
 
 // ============================================================================

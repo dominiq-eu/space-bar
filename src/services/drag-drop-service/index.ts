@@ -1,6 +1,6 @@
 import { Context, Effect, Layer, SubscriptionRef } from "effect"
 import { BrowserApiService } from "../browser-api-service/index.ts"
-import type { Tab, TabGroup } from "../state-service/types.ts"
+import type { Tab, TabGroup } from "../state-service/schema.ts"
 
 // --- Types ---
 
@@ -68,6 +68,17 @@ const make = Effect.gen(function* () {
           tabIds: [state.draggedItemId as number],
           groupId: targetGroupId,
         }).pipe(
+          Effect.tapError((error) =>
+            Effect.logWarning(
+              "Failed to group tab during drag-drop",
+              error,
+            ).pipe(
+              Effect.annotateLogs({
+                tabId: state.draggedItemId,
+                targetGroupId,
+              }),
+            )
+          ),
           Effect.catchAll(() => Effect.void),
         )
       }
@@ -86,10 +97,31 @@ const make = Effect.gen(function* () {
           windowId: targetWindowId,
           index: -1,
         }).pipe(
+          Effect.tapError((error) =>
+            Effect.logWarning(
+              "Failed to move tab to window during drag-drop",
+              error,
+            ).pipe(
+              Effect.annotateLogs({
+                tabId: state.draggedItemId,
+                targetWindowId,
+              }),
+            )
+          ),
           Effect.catchAll(() => Effect.void),
         )
         // Ungroup the tab
         yield* browserApi.tabs.ungroup([state.draggedItemId as number]).pipe(
+          Effect.tapError((error) =>
+            Effect.logWarning(
+              "Failed to ungroup tab during drag-drop",
+              error,
+            ).pipe(
+              Effect.annotateLogs({
+                tabId: state.draggedItemId,
+              }),
+            )
+          ),
           Effect.catchAll(() => Effect.void),
         )
       } else if (state.dragType === "group") {
@@ -97,6 +129,17 @@ const make = Effect.gen(function* () {
           windowId: targetWindowId,
           index: -1,
         }).pipe(
+          Effect.tapError((error) =>
+            Effect.logWarning(
+              "Failed to move tab group to window during drag-drop",
+              error,
+            ).pipe(
+              Effect.annotateLogs({
+                groupId: state.draggedItemId,
+                targetWindowId,
+              }),
+            )
+          ),
           Effect.catchAll(() => Effect.void),
         )
       }

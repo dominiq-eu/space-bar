@@ -24,14 +24,17 @@
     "preact/": "npm:/preact/"
   },
   "tasks": {
-    "dev": "deno run --watch --allow-read --allow-write src/main.tsx",
-    "build": "deno task build:css && deno task build:background && deno task build:sidepanel",
+    "dev": "deno run --watch --allow-read --allow-write --allow-env --env-file=.env.development src/main.tsx",
+    "build": "deno task build:html && deno task build:css && BUILD=production deno task build:background && BUILD=production deno task build:sidepanel",
+    "build:dev": "deno task build:html && deno task build:css && BUILD=development deno task build:background && BUILD=development deno task build:sidepanel",
+    "build:html": "mkdir -p dist && cp sidepanel.html dist/sidepanel.html && sed -i '' 's|src=\"src/main.tsx\"|src=\"sidepanel.js\"|g' dist/sidepanel.html",
     "build:css": "deno run -A npm:tailwindcss -i src/input.css -o dist/output.css --minify",
-    "build:background": "deno bundle --outdir dist src/background.ts",
-    "build:sidepanel": "deno bundle --outdir dist sidepanel.html",
+    "build:background": "deno bundle src/background.ts > dist/background.js",
+    "build:sidepanel": "deno bundle src/main.tsx > dist/sidepanel.js",
     "lint": "deno lint src/",
     "fmt": "deno fmt src/",
-    "check": "deno check ./src/"
+    "check": "deno check ./src/",
+    "test": "deno test --allow-read --allow-write --allow-net --allow-env src/"
   },
   "fmt": {
     "useTabs": false,

@@ -1,25 +1,13 @@
 import { useEffect, useState } from "preact/hooks"
 import { Effect, Option } from "effect"
-import {
-  BrowserApiService,
-  ChromeApiServiceLive,
-} from "../services/browser-api-service/index.ts"
 import type {
   Tab,
   TabGroup,
   WindowId,
 } from "../services/state-service/types.ts"
 import { VALID_GROUP_COLORS } from "../services/workspaces-service/metadata-parser.ts"
-import { renameTabBookmark } from "../services/workspaces-service/index.ts"
 import { optionToUndefined, urlToString } from "../utils/type-conversions.ts"
-
-// Helper to get BrowserApiService instance
-const getBrowserApi = () => {
-  const program = Effect.gen(function* () {
-    return yield* BrowserApiService
-  })
-  return Effect.runSync(program.pipe(Effect.provide(ChromeApiServiceLive)))
-}
+import { useBrowserApi, useWorkspacesService } from "./service-context.tsx"
 
 export interface TabItemProps {
   tab: Tab
@@ -42,6 +30,9 @@ export function TabItem({
   onDrop,
   isDragging,
 }: TabItemProps) {
+  const browserApi = useBrowserApi()
+  const workspacesService = useWorkspacesService()
+
   const [contextMenu, setContextMenu] = useState<
     {
       x: number
@@ -81,8 +72,6 @@ export function TabItem({
 
   const handleClick = () => {
     if (!tab.id) return
-
-    const browserApi = getBrowserApi()
 
     // If tab is in a different window, open URL in new tab in current window
     if (currentWindowId && tab.windowId !== currentWindowId && tab.url) {
@@ -143,7 +132,6 @@ export function TabItem({
   const handleClose = (e: MouseEvent) => {
     e.stopPropagation()
     if (tab.id) {
-      const browserApi = getBrowserApi()
       Effect.runPromise(browserApi.tabs.remove(tab.id))
     }
   }
@@ -203,12 +191,12 @@ export function TabItem({
   }
 
   const handleConfirmRename = () => {
-    if (!newTitle.trim() || !currentWindowId) return
+    if (!newTitle.trim() || !currentWindowId || !tab.id) return
 
     const tabUrl = urlToString(tab.url)
 
     Effect.runPromise(
-      renameTabBookmark(
+      workspacesService.renameTabBookmark(
         currentWindowId as WindowId,
         tabUrl,
         newTitle.trim(),
@@ -227,7 +215,6 @@ export function TabItem({
 
   const handleCloseFromMenu = () => {
     if (tab.id) {
-      const browserApi = getBrowserApi()
       Effect.runPromise(browserApi.tabs.remove(tab.id))
     }
     setContextMenu(null)
@@ -235,17 +222,22 @@ export function TabItem({
 
   const handleTogglePin = () => {
     if (tab.id) {
-      const browserApi = getBrowserApi()
       const newPinnedState = !tab.pinned
       Effect.runPromise(
         browserApi.tabs.update(tab.id, { pinned: newPinnedState }),
       )
         .then(() => {
-          console.log(`Tab ${tab.id} pinned state updated to: ${newPinnedState}`)
+          console.log(
+            `Tab ${tab.id} pinned state updated to: ${newPinnedState}`,
+          )
         })
         .catch((error) => {
           console.error("Failed to toggle pin:", error)
-          alert(`Failed to ${newPinnedState ? "pin" : "unpin"} tab: ${error.message}`)
+          alert(
+            `Failed to ${
+              newPinnedState ? "pin" : "unpin"
+            } tab: ${error.message}`,
+          )
         })
     }
     setContextMenu(null)
@@ -278,7 +270,6 @@ export function TabItem({
         },
       )
 
-      const browserApi = getBrowserApi()
       const extensionId = browserApi.runtime.getId()
       const encodedUrl = encodeURIComponent(normalizedUrl)
       const size = 32

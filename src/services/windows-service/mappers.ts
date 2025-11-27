@@ -1,6 +1,7 @@
 import { Effect } from "effect"
-import { Window, WindowId, WindowType } from "../state-service/types.ts"
+import { Window, WindowType } from "../state-service/schema.ts"
 import { InvalidWindowDataError } from "./errors.ts"
+import { InvalidIdError, Validators } from "../validation-service/index.ts"
 
 /**
  * Map Chrome Window → Domain Window
@@ -9,7 +10,7 @@ import { InvalidWindowDataError } from "./errors.ts"
  */
 export function mapChromeWindow(
   chromeWindow: chrome.windows.Window,
-): Effect.Effect<Window, InvalidWindowDataError> {
+): Effect.Effect<Window, InvalidWindowDataError | InvalidIdError> {
   return Effect.gen(function* () {
     // Validate required fields
     if (chromeWindow.id === undefined) {
@@ -41,9 +42,12 @@ export function mapChromeWindow(
       )
     }
 
-    // Build Window
+    // Validate ID with Schema before branding
+    const windowId = yield* Validators.windowId(chromeWindow.id)
+
+    // Build Window with validated ID
     const window: Window = {
-      id: chromeWindow.id as WindowId,
+      id: windowId,
       focused: chromeWindow.focused ?? false,
       type: chromeWindow.type as WindowType,
     }

@@ -1,5 +1,5 @@
 import { Schema } from "effect"
-import { WindowId } from "../state-service/types.ts"
+import { WindowId } from "../state-service/schema.ts"
 
 /**
  * Window Created Event

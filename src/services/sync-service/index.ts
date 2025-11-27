@@ -4,21 +4,25 @@
 
 import { Context, Effect, Layer, SubscriptionRef } from "effect"
 import { BrowserApiService } from "../browser-api-service/index.ts"
-import type { WindowId, WorkspaceId } from "../state-service/types.ts"
 import {
-  cleanupWindowWorkspaceMap,
-  getWindowWorkspaceMap,
-  getWorkspaceForWindow,
-  linkWindowToWorkspace,
   STORAGE_KEY_WINDOW_WORKSPACE_MAP,
+  StorageService,
+  StorageServiceLive,
 } from "../storage-service/index.ts"
-import { getBookmarksBar, getIsLoadingWorkspace } from "../workspaces-service/index.ts"
+import {
+  WorkspacesService,
+  WorkspacesServiceLive,
+} from "../workspaces-service/index.ts"
+import { Validators } from "../validation-service/index.ts"
 import { isSome } from "../../utils/type-conversions.ts"
 
 // Import reconciliation modules
 import { diffStates, getStateStats } from "./reconciliation.ts"
-import { mapTabsToNormalizedStateEnhanced, mapBookmarksToNormalizedState } from "./mappers.ts"
-import { applyOperationsToTabs, applyOperationsToBookmarks } from "./apply.ts"
+import {
+  mapBookmarksToNormalizedState,
+  mapTabsToNormalizedStateEnhanced,
+} from "./mappers.ts"
+import { applyOperationsToBookmarks, applyOperationsToTabs } from "./apply.ts"
 
 // ============================================================================
 // Types
@@ -77,6 +81,8 @@ export const SyncService = Context.GenericTag<SyncService>("SyncService")
 
 const make = Effect.gen(function* () {
   const browserApi = yield* BrowserApiService
+  const storageService = yield* StorageService
+  const workspacesService = yield* WorkspacesService
 
   // ==========================================================================
   // State Management
@@ -102,7 +108,7 @@ const make = Effect.gen(function* () {
 
   const loadWindowWorkspaceMap = (): Effect.Effect<void, never> =>
     Effect.gen(function* () {
-      const map = yield* getWindowWorkspaceMap().pipe(
+      const map = yield* storageService.getWindowWorkspaceMap().pipe(
         Effect.map((stringMap) => {
           const result: Record<number, string> = {}
           for (const [key, value] of Object.entries(stringMap)) {
@@ -135,7 +141,10 @@ const make = Effect.gen(function* () {
   yield* Effect.promise(() =>
     Effect.runPromise(
       Effect.gen(function* () {
-        yield* cleanupWindowWorkspaceMap(getBookmarksBar)
+        const bookmarksBar = yield* workspacesService.getBookmarksBar()
+        yield* storageService.cleanupWindowWorkspaceMap(
+          Effect.succeed(bookmarksBar),
+        )
       }),
     )
   )
@@ -149,7 +158,9 @@ const make = Effect.gen(function* () {
       const state = yield* SubscriptionRef.get(syncLockRef)
 
       if (state.isLocked) {
-        console.log("[SyncService] Sync already in progress, cannot acquire lock")
+        console.log(
+          "[SyncService] Sync already in progress, cannot acquire lock",
+        )
         return false
       }
 
@@ -193,8 +204,7 @@ const make = Effect.gen(function* () {
 
       // Deduplizierung: Entferne ältere Jobs für gleiches Window/Workspace
       const filteredQueue = queueState.queue.filter(
-        (j) =>
-          j.windowId !== job.windowId || j.workspaceId !== job.workspaceId,
+        (j) => j.windowId !== job.windowId || j.workspaceId !== job.workspaceId,
       )
 
       // Füge neuen Job hinzu
@@ -305,20 +315,20 @@ const make = Effect.gen(function* () {
         console.log("[SyncService] Loading source state...")
         const sourceState = yield* (job.direction === "tabs-to-bookmarks"
           ? Effect.gen(function* () {
-              const tabs = yield* browserApi.tabs.query({
-                windowId: job.windowId,
-              })
-              const groups = yield* browserApi.tabGroups.query({
-                windowId: job.windowId,
-              })
-              return yield* mapTabsToNormalizedStateEnhanced(tabs, groups)
+            const tabs = yield* browserApi.tabs.query({
+              windowId: job.windowId,
             })
+            const groups = yield* browserApi.tabGroups.query({
+              windowId: job.windowId,
+            })
+            return yield* mapTabsToNormalizedStateEnhanced(tabs, groups)
+          })
           : Effect.gen(function* () {
-              const workspaceTree = yield* browserApi.bookmarks.getSubTree(
-                job.workspaceId,
-              )
-              return yield* mapBookmarksToNormalizedState(workspaceTree[0])
-            }))
+            const workspaceTree = yield* browserApi.bookmarks.getSubTree(
+              job.workspaceId,
+            )
+            return yield* mapBookmarksToNormalizedState(workspaceTree[0])
+          }))
 
         console.log(
           "[SyncService] Source state loaded:",
@@ -329,20 +339,20 @@ const make = Effect.gen(function* () {
         console.log("[SyncService] Loading target state...")
         const targetState = yield* (job.direction === "tabs-to-bookmarks"
           ? Effect.gen(function* () {
-              const workspaceTree = yield* browserApi.bookmarks.getSubTree(
-                job.workspaceId,
-              )
-              return yield* mapBookmarksToNormalizedState(workspaceTree[0])
-            })
+            const workspaceTree = yield* browserApi.bookmarks.getSubTree(
+              job.workspaceId,
+            )
+            return yield* mapBookmarksToNormalizedState(workspaceTree[0])
+          })
           : Effect.gen(function* () {
-              const tabs = yield* browserApi.tabs.query({
-                windowId: job.windowId,
-              })
-              const groups = yield* browserApi.tabGroups.query({
-                windowId: job.windowId,
-              })
-              return yield* mapTabsToNormalizedStateEnhanced(tabs, groups)
-            }))
+            const tabs = yield* browserApi.tabs.query({
+              windowId: job.windowId,
+            })
+            const groups = yield* browserApi.tabGroups.query({
+              windowId: job.windowId,
+            })
+            return yield* mapTabsToNormalizedStateEnhanced(tabs, groups)
+          }))
 
         console.log(
           "[SyncService] Target state loaded:",
@@ -388,7 +398,12 @@ const make = Effect.gen(function* () {
         // 6. Release Lock (ALWAYS, auch bei Fehler)
         yield* releaseSyncLock()
       }
-    })
+    }).pipe(
+      Effect.catchAll((error) => {
+        console.error("[SyncService] Reconciliation failed:", error)
+        return Effect.succeed(undefined)
+      }),
+    )
 
   // ==========================================================================
   // Event Listeners - Tab Changes
@@ -414,7 +429,8 @@ const make = Effect.gen(function* () {
               }
 
               // Ignore if loading workspace
-              if (getIsLoadingWorkspace()) {
+              const isLoading = yield* workspacesService.isLoadingWorkspace
+              if (isLoading) {
                 console.log(
                   "[SyncService] Ignoring tab update (loading workspace)",
                 )
@@ -422,9 +438,9 @@ const make = Effect.gen(function* () {
               }
 
               // Only react to relevant changes
-              const isRelevantChange =
-                changeInfo.pinned !== undefined ||
-                changeInfo.title !== undefined ||
+              // NOTE: Title changes are NOT synced from tabs to bookmarks!
+              // Reason: Renamed bookmarks should preserve user's custom title
+              const isRelevantChange = changeInfo.pinned !== undefined ||
                 changeInfo.url !== undefined
 
               if (!isRelevantChange) {
@@ -475,7 +491,8 @@ const make = Effect.gen(function* () {
                 }
               }
 
-              if (getIsLoadingWorkspace()) return
+              const isLoading = yield* workspacesService.isLoadingWorkspace
+              if (isLoading) return
 
               const map = yield* SubscriptionRef.get(windowWorkspaceMap)
               const workspaceId = map[removeInfo.windowId]
@@ -516,7 +533,8 @@ const make = Effect.gen(function* () {
               }
             }
 
-            if (getIsLoadingWorkspace()) return
+            const isLoading = yield* workspacesService.isLoadingWorkspace
+            if (isLoading) return
 
             if (!tab.windowId) return
 
@@ -556,7 +574,8 @@ const make = Effect.gen(function* () {
               }
             }
 
-            if (getIsLoadingWorkspace()) return
+            const isLoading = yield* workspacesService.isLoadingWorkspace
+            if (isLoading) return
 
             const map = yield* SubscriptionRef.get(windowWorkspaceMap)
             const workspaceId = map[moveInfo.windowId]
@@ -594,7 +613,8 @@ const make = Effect.gen(function* () {
               }
             }
 
-            if (getIsLoadingWorkspace()) return
+            const isLoading = yield* workspacesService.isLoadingWorkspace
+            if (isLoading) return
 
             // Find which window this group belongs to
             const tabs = yield* browserApi.tabs.query({ groupId: group.id })
@@ -668,7 +688,7 @@ const make = Effect.gen(function* () {
   yield* Effect.acquireRelease(
     Effect.sync(() => {
       const cleanup = browserApi.events.onBookmarkChanged(
-        (id, changeInfo) => {
+        (id, _changeInfo) => {
           Effect.runFork(
             Effect.gen(function* () {
               const locked = yield* isSyncLocked()
@@ -682,7 +702,8 @@ const make = Effect.gen(function* () {
                 }
               }
 
-              if (getIsLoadingWorkspace()) return
+              const isLoading = yield* workspacesService.isLoadingWorkspace
+              if (isLoading) return
 
               const workspace = yield* findWorkspaceForBookmark(id)
 
@@ -723,7 +744,8 @@ const make = Effect.gen(function* () {
                 }
               }
 
-              if (getIsLoadingWorkspace()) return
+              const isLoading = yield* workspacesService.isLoadingWorkspace
+              if (isLoading) return
 
               // Check if bookmark's parent is a workspace
               if (bookmark.parentId) {
@@ -769,7 +791,8 @@ const make = Effect.gen(function* () {
                 }
               }
 
-              if (getIsLoadingWorkspace()) return
+              const isLoading = yield* workspacesService.isLoadingWorkspace
+              if (isLoading) return
 
               const workspace = yield* findWorkspaceForBookmark(
                 removeInfo.parentId,
@@ -778,6 +801,54 @@ const make = Effect.gen(function* () {
               if (workspace) {
                 console.log(
                   `[SyncService] Bookmark ${id} removed, enqueueing sync`,
+                )
+
+                yield* enqueueSyncJob({
+                  windowId: workspace.windowId,
+                  workspaceId: workspace.workspaceId,
+                  direction: "bookmarks-to-tabs",
+                  timestamp: Date.now(),
+                  source: "bookmark-change",
+                })
+              }
+            }),
+          )
+        },
+      )
+      return cleanup
+    }),
+    (cleanup) => Effect.sync(() => cleanup()),
+  )
+
+  // Bookmark Moved Event
+  yield* Effect.acquireRelease(
+    Effect.sync(() => {
+      const cleanup = browserApi.events.onBookmarkMoved(
+        (id, moveInfo) => {
+          Effect.runFork(
+            Effect.gen(function* () {
+              const locked = yield* isSyncLocked()
+              if (locked) {
+                const currentJob = yield* getCurrentSyncJob()
+                if (currentJob?.direction === "tabs-to-bookmarks") {
+                  console.log(
+                    "[SyncService] Ignoring bookmark move (syncing tabs to bookmarks)",
+                  )
+                  return
+                }
+              }
+
+              const isLoading = yield* workspacesService.isLoadingWorkspace
+              if (isLoading) return
+
+              // Check if the bookmark was moved within a workspace
+              const workspace = yield* findWorkspaceForBookmark(
+                moveInfo.parentId,
+              )
+
+              if (workspace) {
+                console.log(
+                  `[SyncService] Bookmark ${id} moved, enqueueing sync`,
                 )
 
                 yield* enqueueSyncJob({
@@ -806,9 +877,12 @@ const make = Effect.gen(function* () {
     workspaceId: string,
   ): Effect.Effect<void> =>
     Effect.gen(function* () {
-      yield* linkWindowToWorkspace(
-        windowId as WindowId,
-        workspaceId as WorkspaceId,
+      const validatedWindowId = yield* Validators.windowId(windowId)
+      const validatedWorkspaceId = yield* Validators.workspaceId(workspaceId)
+
+      yield* storageService.linkWindowToWorkspace(
+        validatedWindowId,
+        validatedWorkspaceId,
       )
       yield* loadWindowWorkspaceMap()
       yield* syncIfLinked(undefined, windowId)
@@ -819,7 +893,8 @@ const make = Effect.gen(function* () {
     windowId?: number,
   ): Effect.Effect<void> =>
     Effect.gen(function* () {
-      if (getIsLoadingWorkspace()) {
+      const isLoading = yield* workspacesService.isLoadingWorkspace
+      if (isLoading) {
         return
       }
 
@@ -833,8 +908,9 @@ const make = Effect.gen(function* () {
       }
 
       if (targetWindowId !== undefined) {
-        const workspaceIdOption = yield* getWorkspaceForWindow(
-          targetWindowId as WindowId,
+        const validatedWindowId = yield* Validators.windowId(targetWindowId)
+        const workspaceIdOption = yield* storageService.getWorkspaceForWindow(
+          validatedWindowId,
         )
         if (isSome(workspaceIdOption)) {
           // Enqueue instead of direct sync
@@ -856,7 +932,26 @@ const make = Effect.gen(function* () {
   }
 })
 
-export const SyncServiceLive = Layer.scoped(SyncService, make)
+/**
+ * Base SyncService layer without dependencies provided.
+ * Use this for testing with mock dependencies.
+ */
+const SyncServiceLayer = Layer.scoped(SyncService, make)
+
+/**
+ * SyncService Live Layer
+ *
+ * Dependencies:
+ * - BrowserApiService (for all Chrome API calls)
+ * - StorageService (for window-workspace mappings)
+ * - WorkspacesService (for workspace operations)
+ */
+export const SyncServiceLive = SyncServiceLayer.pipe(
+  Layer.provide(Layer.mergeAll(
+    StorageServiceLive,
+    WorkspacesServiceLive,
+  )),
+)
 
 // ============================================================================
 // Helper Functions

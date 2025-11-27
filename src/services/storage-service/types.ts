@@ -1,5 +1,5 @@
 import { Context, Data, Effect, Option } from "effect"
-import type { WindowId, WorkspaceId } from "../state-service/types.ts"
+import type { WindowId, WorkspaceId } from "../state-service/schema.ts"
 
 // ============================================================================
 // Error Types

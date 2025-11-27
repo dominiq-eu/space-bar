@@ -767,3 +767,5 @@ Start with these files to understand the system:
 ---
 
 **Remember:** This is not just a guideline—it's the architecture. Any deviation requires explicit discussion and documentation.
+- Run: ```deno run fmt && deno run check && deno run build && deno run test``` after every changeset to verify the last changes.
+- Dependencies from services to other services should be provided as fast as possible

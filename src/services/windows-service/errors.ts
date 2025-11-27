@@ -1,5 +1,5 @@
 import { Data } from "effect"
-import type { WindowId } from "../state-service/types.ts"
+import type { WindowId } from "../state-service/schema.ts"
 
 /**
  * Window not found error

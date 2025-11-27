@@ -2,7 +2,8 @@ import { Effect, Layer, Option } from "effect"
 import { BrowserApiService } from "../browser-api-service/index.ts"
 import { StorageService } from "./types.ts"
 import { StorageOperationError } from "./types.ts"
-import type { WindowId, WorkspaceId } from "../state-service/types.ts"
+import type { WindowId, WorkspaceId } from "../state-service/schema.ts"
+import { Validators } from "../validation-service/index.ts"
 
 // ============================================================================
 // Constants
@@ -120,9 +121,12 @@ const make = Effect.gen(function* () {
           ({} as Record<string, string>)
       const workspaceId = map[String(windowId)]
 
-      return workspaceId
-        ? Option.some(workspaceId as WorkspaceId)
-        : Option.none()
+      if (workspaceId) {
+        const validated = yield* Validators.workspaceIdOptional(workspaceId)
+        return validated
+      }
+
+      return Option.none()
     })
 
   /**
@@ -159,6 +163,12 @@ const make = Effect.gen(function* () {
     Effect.gen(function* () {
       // Get all currently open windows
       const windows = yield* browserApi.windows.getAll({}).pipe(
+        Effect.tapError((error) =>
+          Effect.logWarning(
+            "Failed to get windows for cleanup, using empty list",
+            error,
+          )
+        ),
         Effect.catchAll(() => Effect.succeed([])),
       )
       const openWindowIds = new Set(windows.map((w) => String(w.id)))
@@ -169,6 +179,12 @@ const make = Effect.gen(function* () {
       // Get children of bookmarks bar (workspaces are folders in bookmarks bar)
       const children = yield* browserApi.bookmarks.getChildren(bookmarksBar.id)
         .pipe(
+          Effect.tapError((error) =>
+            Effect.logWarning(
+              "Failed to get bookmark children for cleanup, using empty list",
+              error,
+            )
+          ),
           Effect.catchAll(() => Effect.succeed([])),
         )
 
@@ -224,9 +240,27 @@ const make = Effect.gen(function* () {
 // ============================================================================
 
 /**
+ * Base StorageService layer without dependencies provided.
+ * Use this for testing with mock dependencies.
+ */
+const StorageServiceLayer = Layer.effect(StorageService, make)
+
+/**
  * StorageService Live Layer
  *
  * Dependencies:
  * - BrowserApiService (for all Chrome API calls)
  */
-export const StorageServiceLive = Layer.effect(StorageService, make)
+export const StorageServiceLive = StorageServiceLayer
+
+/**
+ * StorageService layer for testing.
+ * Does NOT provide BrowserApiService - caller must provide it.
+ *
+ * Usage in tests:
+ * ```typescript
+ * const mockLayer = createMockBrowserApiService()
+ * const testLayer = StorageServiceTest.pipe(Layer.provide(mockLayer))
+ * ```
+ */
+export const StorageServiceTest = StorageServiceLayer

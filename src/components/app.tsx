@@ -2,11 +2,10 @@ import { useEffect, useState } from "preact/hooks"
 import { Effect } from "effect"
 
 import {
-  BrowserApiService,
-  ChromeApiServiceLive,
-} from "../services/browser-api-service/index.ts"
-import { getCurrentWindow } from "../services/windows-service/index.ts"
-import { getBookmarksBar } from "../services/workspaces-service/index.ts"
+  useBrowserApi,
+  useWindowsService,
+  useWorkspacesService,
+} from "./service-context.tsx"
 import { LinkWorkspaceDialog } from "./link-workspace-dialog.tsx"
 import { WorkspaceBar } from "./workspace-bar.tsx"
 import { optionContains } from "../utils/type-conversions.ts"
@@ -15,16 +14,12 @@ import { useAppState } from "../hooks/useAppState.ts"
 import { useSyncService } from "../hooks/useSyncService.ts"
 import type { Tab, TabGroup } from "../services/state-service/types.ts"
 
-// Helper to get BrowserApiService instance
-const getBrowserApi = () => {
-  const program = Effect.gen(function* () {
-    return yield* BrowserApiService
-  })
-  return Effect.runSync(program.pipe(Effect.provide(ChromeApiServiceLive)))
-}
-
 function AppContent() {
   const { state } = useAppState()
+  const browserApi = useBrowserApi()
+  const windowsService = useWindowsService()
+  const workspacesService = useWorkspacesService()
+
   const [workspaceNames, setWorkspaceNames] = useState<Record<string, string>>(
     {},
   )
@@ -33,7 +28,7 @@ function AppContent() {
   const { linkWindow, windowWorkspaceMap } = useSyncService()
 
   const loadCurrentWindowId = () => {
-    Effect.runPromise(getCurrentWindow())
+    Effect.runPromise(windowsService.getCurrentWindow())
       .then((window) => {
         setCurrentWindowId(window.id)
       })
@@ -43,23 +38,23 @@ function AppContent() {
   }
 
   const loadWorkspaceNames = () => {
-    const browserApi = getBrowserApi()
-
-    Effect.runPromise(getBookmarksBar).then((bookmarksBar) => {
-      Effect.runPromise(
-        browserApi.bookmarks.getChildren(bookmarksBar.id).pipe(
-          Effect.catchAll(() => Effect.succeed([])),
-        ),
-      ).then((children) => {
-        const names: Record<string, string> = {}
-        children
-          .filter((child) => !child.url)
-          .forEach((workspace) => {
-            names[workspace.id] = workspace.title || "Unnamed Workspace"
-          })
-        setWorkspaceNames(names)
-      })
-    })
+    Effect.runPromise(workspacesService.getBookmarksBar()).then(
+      (bookmarksBar) => {
+        Effect.runPromise(
+          browserApi.bookmarks.getChildren(bookmarksBar.id).pipe(
+            Effect.catchAll(() => Effect.succeed([])),
+          ),
+        ).then((children) => {
+          const names: Record<string, string> = {}
+          children
+            .filter((child) => !child.url)
+            .forEach((workspace) => {
+              names[workspace.id] = workspace.title || "Unnamed Workspace"
+            })
+          setWorkspaceNames(names)
+        })
+      },
+    )
   }
 
   const openLinkDialog = (windowId: number) => {
@@ -75,8 +70,6 @@ function AppContent() {
     // Initial load
     loadCurrentWindowId()
     loadWorkspaceNames()
-
-    const browserApi = getBrowserApi()
 
     // Listen for bookmark changes to update workspace names
     const onBookmarksChanged = () => {

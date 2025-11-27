@@ -1,5 +1,5 @@
 import { Data } from "effect"
-import type { GroupId, TabId } from "../state-service/types.ts"
+import type { GroupId, TabId } from "../state-service/schema.ts"
 
 /**
  * Tab not found error

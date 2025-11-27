@@ -1,151 +1,88 @@
-import { Option, Schema } from "effect"
+import { Context, Data, Effect } from "effect"
+import type { AppState, Tab, TabGroup, Window } from "./schema.ts"
+
+// Re-export domain types for convenience
+export type { AppState, Tab, TabGroup, Window } from "./schema.ts"
+export type { GroupId, TabId, WindowId, WorkspaceId } from "./schema.ts"
 
 // ============================================================================
-// Branded ID Types
+// Tagged Errors
 // ============================================================================
 
 /**
- * Branded Tab ID - verhindert versehentliche ID-Verwechslungen
+ * State Load Error
+ * Thrown when loading application state fails
  */
-export const TabId = Schema.Number.pipe(
-  Schema.int(),
-  Schema.positive(),
-  Schema.brand("TabId"),
-)
-export type TabId = Schema.Schema.Type<typeof TabId>
-
-/**
- * Branded Window ID
- */
-export const WindowId = Schema.Number.pipe(
-  Schema.int(),
-  Schema.positive(),
-  Schema.brand("WindowId"),
-)
-export type WindowId = Schema.Schema.Type<typeof WindowId>
-
-/**
- * Branded Group ID
- */
-export const GroupId = Schema.Number.pipe(
-  Schema.int(),
-  Schema.positive(),
-  Schema.brand("GroupId"),
-)
-export type GroupId = Schema.Schema.Type<typeof GroupId>
-
-/**
- * Branded Workspace ID (string-based, from Chrome Bookmarks API)
- */
-export const WorkspaceId = Schema.String.pipe(
-  Schema.minLength(1),
-  Schema.brand("WorkspaceId"),
-)
-export type WorkspaceId = Schema.Schema.Type<typeof WorkspaceId>
+export class StateLoadError extends Data.TaggedError("StateLoadError")<{
+  readonly reason: string
+}> {}
 
 // ============================================================================
-// Tab Group Color
+// Service Tag & Interface
 // ============================================================================
 
 /**
- * Valid Chrome tab group colors
- */
-export const TabGroupColor = Schema.Literal(
-  "grey",
-  "blue",
-  "red",
-  "yellow",
-  "green",
-  "pink",
-  "purple",
-  "cyan",
-  "orange",
-)
-export type TabGroupColor = Schema.Schema.Type<typeof TabGroupColor>
-
-// ============================================================================
-// Window Type
-// ============================================================================
-
-/**
- * Chrome window types
- */
-export const WindowType = Schema.Literal(
-  "normal",
-  "popup",
-  "panel",
-  "app",
-  "devtools",
-)
-export type WindowType = Schema.Schema.Type<typeof WindowType>
-
-// ============================================================================
-// Domain Models
-// ============================================================================
-
-/**
- * Tab - represents an existing browser tab
+ * StateService Context Tag
  *
- * All fields are ALWAYS present (no optional!)
- * Uses Option<T> for truly optional values (favIconUrl, groupId)
- * Uses Effect's built-in URL Schema for validated URLs
+ * Use this to inject StateService into other services or programs:
  *
- * Title resolution:
- * - If tab's URL has a linked bookmark with [*] marker → uses bookmark title
- * - Otherwise → uses Chrome's tab title
- * This is handled transparently in mapChromeTab() via bookmarkTitleMap
+ * ```typescript
+ * const program = Effect.gen(function*() {
+ *   const stateService = yield* StateService
+ *   const appState = yield* stateService.createAppState
+ *   console.log("Loaded state:", appState)
+ * })
+ *
+ * Effect.runPromise(
+ *   program.pipe(Effect.provide(StateServiceLive))
+ * )
+ * ```
  */
-export const Tab = Schema.Struct({
-  id: TabId,
-  windowId: WindowId,
-  title: Schema.String.pipe(Schema.minLength(1)), // Tab title (bookmark title if renamed, otherwise Chrome title)
-  url: Schema.URL, // 🔥 Effect's built-in URL Schema!
-  favIconUrl: Schema.OptionFromSelf(Schema.URL), // Option<URL>
-  active: Schema.Boolean,
-  groupId: Schema.OptionFromSelf(GroupId), // Option<GroupId> - kein null!
-  pinned: Schema.Boolean,
-})
-export type Tab = Schema.Schema.Type<typeof Tab>
+export class StateService extends Context.Tag("StateService")<
+  StateService,
+  {
+    /**
+     * Get current timestamp
+     * Never fails
+     */
+    readonly getCurrentTime: Effect.Effect<Date, never>
 
-/**
- * Mutable version of Tab for partial updates
- */
-export type TabChanges = {
-  url?: URL
-  title?: string
-  favIconUrl?: Option.Option<URL>
-  pinned?: boolean
-  groupId?: Option.Option<GroupId>
-}
+    /**
+     * Create complete application state
+     * Loads all tabs, windows, groups, and workspace mappings
+     * Enriches tab titles with bookmark names from linked workspaces
+     *
+     * @returns AppState with all current browser state
+     * @throws StateLoadError if loading fails
+     */
+    readonly createAppState: Effect.Effect<AppState, StateLoadError>
 
-/**
- * TabGroup - represents a tab group
- */
-export const TabGroup = Schema.Struct({
-  id: GroupId,
-  title: Schema.OptionFromSelf(Schema.String.pipe(Schema.minLength(1))),
-  color: TabGroupColor,
-  collapsed: Schema.Boolean,
-})
-export type TabGroup = Schema.Schema.Type<typeof TabGroup>
+    /**
+     * Get all tabs across all windows
+     * Includes bookmark title enrichment
+     *
+     * @returns Array of tabs
+     * @throws StateLoadError if loading fails
+     */
+    readonly getTabs: Effect.Effect<Tab[], StateLoadError>
 
-/**
- * Window - represents a browser window
- */
-export const Window = Schema.Struct({
-  id: WindowId,
-  focused: Schema.Boolean,
-  type: WindowType,
-})
-export type Window = Schema.Schema.Type<typeof Window>
+    /**
+     * Get all tab groups across all windows
+     *
+     * @returns Array of tab groups
+     * @throws StateLoadError if loading fails
+     */
+    readonly getTabGroups: Effect.Effect<TabGroup[], StateLoadError>
 
-/**
- * AppState - complete application state
- */
-export const AppState = Schema.Struct({
-  timestamp: Schema.Date,
-  tabs: Schema.Array(Tab),
-  tabGroups: Schema.Array(TabGroup),
-  windows: Schema.Array(Window),
-})
-export type AppState = Schema.Schema.Type<typeof AppState>
+    /**
+     * Get all windows
+     *
+     * @returns Array of windows
+     * @throws StateLoadError if loading fails
+     */
+    readonly getWindows: Effect.Effect<Window[], StateLoadError>
+  }
+>() {}
+
+// Type alias for the service interface (for use in implementations)
+export type StateServiceInterface = Context.Tag.Service<StateService>

@@ -9,7 +9,7 @@ export type {
   TabId,
   WindowId,
   WorkspaceId,
-} from "../state-service/types.ts"
+} from "../state-service/schema.ts"
 
 // ============================================================================
 // Tagged Errors
@@ -555,6 +555,16 @@ export interface BrowserApiService {
       callback: (
         id: string,
         removeInfo: chrome.bookmarks.BookmarkRemoveInfo,
+      ) => void,
+    ) => () => void
+
+    /**
+     * Subscribe to bookmark moved events
+     */
+    readonly onBookmarkMoved: (
+      callback: (
+        id: string,
+        moveInfo: chrome.bookmarks.BookmarkMoveInfo,
       ) => void,
     ) => () => void
 

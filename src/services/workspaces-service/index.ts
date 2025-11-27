@@ -15,8 +15,11 @@ export { WorkspacesService } from "./types.ts"
 // Export error types
 export { BookmarkNotFoundError, WorkspaceOperationError } from "./types.ts"
 
-// Export the implementation layer
-export { WorkspacesServiceLive } from "./implementation.ts"
+// Export the implementation layers
+export {
+  WorkspacesServiceLive,
+  WorkspacesServiceTest,
+} from "./implementation.ts"
 
 // Re-export metadata utilities
 export {
@@ -36,22 +39,3 @@ export {
   SYNC_DEBOUNCE_MS,
   TAB_LOAD_TIMEOUT_MS,
 } from "./utils.ts"
-
-// ==============================================================================
-// Backwards Compatibility Exports
-// ==============================================================================
-// Re-export old API from index.old.ts for backwards compatibility
-// This allows existing code to continue working while we migrate to the new
-// Service-based API.
-
-export {
-  deleteWorkspace,
-  getBookmarksBar,
-  getIsLoadingWorkspace,
-  loadWorkspaceInWindow,
-  renameTabBookmark,
-  renameWorkspace,
-  restoreWorkspace,
-  saveWorkspace,
-  syncWorkspace,
-} from "./index.old.ts"

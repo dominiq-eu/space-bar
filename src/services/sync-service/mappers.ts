@@ -3,13 +3,16 @@
 // ============================================================================
 
 import { Effect } from "effect"
-import type { NormalizedGroup, NormalizedItem, NormalizedState } from "./reconciliation.ts"
+import type {
+  NormalizedGroup,
+  NormalizedItem,
+  NormalizedState,
+} from "./reconciliation.ts"
 import {
   parseBookmarkPinnedStatus,
   parseGroupMetadata,
   PINNED_FOLDER_NAME,
 } from "../workspaces-service/metadata-parser.ts"
-import { urlToString } from "../../utils/type-conversions.ts"
 
 // ============================================================================
 // Chrome Tabs → Normalized State
@@ -28,7 +31,7 @@ export const mapTabsToNormalizedState = (
   tabs: chrome.tabs.Tab[],
   groups: chrome.tabGroups.TabGroup[],
 ): Effect.Effect<NormalizedState> =>
-  Effect.gen(function* () {
+  Effect.sync(() => {
     // ✅ MERGE LOGIC: Group tab groups by title+color
     // Key format: "title|color"
     const makeGroupKey = (title: string, color: string) => `${title}|${color}`
@@ -47,7 +50,7 @@ export const mapTabsToNormalizedState = (
     // Map: original tab group ID → merged group ID (for items)
     const groupIdMapping = new Map<number, string>()
 
-    for (const [key, duplicateGroups] of groupsByKey) {
+    for (const [_key, duplicateGroups] of groupsByKey) {
       if (duplicateGroups.length === 0) continue
 
       // Use first group as representative
@@ -76,10 +79,14 @@ export const mapTabsToNormalizedState = (
       }
     }
 
-    // Map tabs to normalized items
-    const items: NormalizedItem[] = []
+    // Sort tabs by Chrome's tab.index first to preserve order
+    const sortedTabs = [...tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
 
-    for (const tab of tabs) {
+    // Map tabs to normalized items with sequential indices
+    const items: NormalizedItem[] = []
+    let itemIndex = 0
+
+    for (const tab of sortedTabs) {
       if (tab.id === undefined || !tab.url) {
         continue
       }
@@ -96,15 +103,12 @@ export const mapTabsToNormalizedState = (
         title: tab.title || "Untitled",
         pinned: tab.pinned || false,
         renamed: false, // Tabs don't have renamed status directly - will be synced from bookmarks
-        index: tab.index,
+        index: itemIndex++, // ✅ Sequential index based on position in sorted array
         groupId,
       }
 
       items.push(item)
     }
-
-    // Sort items by index to maintain order
-    items.sort((a, b) => a.index - b.index)
 
     return {
       items,
@@ -125,7 +129,7 @@ export const mapTabsToNormalizedState = (
 export const mapBookmarksToNormalizedState = (
   workspace: chrome.bookmarks.BookmarkTreeNode,
 ): Effect.Effect<NormalizedState> =>
-  Effect.gen(function* () {
+  Effect.sync(() => {
     const items: NormalizedItem[] = []
     const groups: NormalizedGroup[] = []
 
@@ -139,7 +143,9 @@ export const mapBookmarksToNormalizedState = (
     for (const child of workspace.children) {
       // Direct bookmark (ungrouped item)
       if (child.url) {
-        const { pinned, renamed, title } = parseBookmarkPinnedStatus(child.title)
+        const { pinned, renamed, title } = parseBookmarkPinnedStatus(
+          child.title,
+        )
         items.push({
           id: child.id,
           url: child.url,
@@ -159,7 +165,9 @@ export const mapBookmarksToNormalizedState = (
           // Process pinned items
           for (const bookmark of child.children) {
             if (bookmark.url) {
-              const { pinned, renamed, title } = parseBookmarkPinnedStatus(bookmark.title)
+              const { pinned, renamed, title } = parseBookmarkPinnedStatus(
+                bookmark.title,
+              )
               items.push({
                 id: bookmark.id,
                 url: bookmark.url,
@@ -175,11 +183,13 @@ export const mapBookmarksToNormalizedState = (
         }
 
         // Regular group folder
-        const { title: groupTitle, color, collapsed } = parseGroupMetadata(child.title)
+        const { title: groupTitle, color, collapsed } = parseGroupMetadata(
+          child.title,
+        )
 
         // ✅ NEW: Use title|color as stable identifier
         // This allows matching with tab groups that have different IDs
-        const groupKey = `${groupTitle}|${color}`
+        const _groupKey = `${groupTitle}|${color}`
 
         // Add group (use folder ID as group ID - it will be matched by title+color in diff)
         groups.push({
@@ -193,7 +203,9 @@ export const mapBookmarksToNormalizedState = (
         // Add items in this group
         for (const bookmark of child.children) {
           if (bookmark.url) {
-            const { pinned, renamed, title } = parseBookmarkPinnedStatus(bookmark.title)
+            const { pinned, renamed, title } = parseBookmarkPinnedStatus(
+              bookmark.title,
+            )
             items.push({
               id: bookmark.id,
               url: bookmark.url,
@@ -265,12 +277,17 @@ export const mapTabsToNormalizedStateEnhanced = (
   tabs: chrome.tabs.Tab[],
   groups: chrome.tabGroups.TabGroup[],
 ): Effect.Effect<NormalizedState> =>
-  Effect.gen(function* () {
+  Effect.sync(() => {
     const groupIndices = calculateGroupIndices(tabs, groups)
 
-    const items: NormalizedItem[] = []
+    // Sort tabs by Chrome's tab.index first to preserve order
+    const sortedTabs = [...tabs].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
 
-    for (const tab of tabs) {
+    // Map tabs to normalized items with sequential indices
+    const items: NormalizedItem[] = []
+    let itemIndex = 0
+
+    for (const tab of sortedTabs) {
       if (tab.id === undefined || !tab.url) {
         continue
       }
@@ -280,11 +297,11 @@ export const mapTabsToNormalizedStateEnhanced = (
         url: tab.url,
         title: tab.title || "Untitled",
         pinned: tab.pinned || false,
-        index: tab.index,
-        groupId:
-          tab.groupId !== undefined && tab.groupId !== -1
-            ? String(tab.groupId)
-            : null,
+        renamed: false, // ✅ Added renamed field
+        index: itemIndex++, // ✅ Sequential index based on position in sorted array
+        groupId: tab.groupId !== undefined && tab.groupId !== -1
+          ? String(tab.groupId)
+          : null,
       }
 
       items.push(item)
@@ -297,8 +314,6 @@ export const mapTabsToNormalizedStateEnhanced = (
       collapsed: group.collapsed,
       index: groupIndices.get(group.id) ?? 0,
     }))
-
-    items.sort((a, b) => a.index - b.index)
 
     return {
       items,

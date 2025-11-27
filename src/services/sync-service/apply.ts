@@ -12,7 +12,7 @@ import {
   parseGroupMetadata,
   PINNED_FOLDER_NAME,
 } from "../workspaces-service/metadata-parser.ts"
-import { findBookmarkByUrl } from "../workspaces-service/utils.ts"
+import { annotateOperation } from "../../utils/logging.ts"
 
 // ============================================================================
 // Apply Operations to Tabs
@@ -31,18 +31,13 @@ export const applyOperationsToTabs = (
   browserApi: BrowserApiService,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
-    console.log(`Applying ${operations.length} operations to tabs in window ${windowId}`)
+    console.log(
+      `Applying ${operations.length} operations to tabs in window ${windowId}`,
+    )
 
     // Get current tabs and groups for lookups
     const currentTabs = yield* browserApi.tabs.query({ windowId })
     const currentGroups = yield* browserApi.tabGroups.query({ windowId })
-
-    // Create lookup maps (by ID and URL)
-    const tabsByUrl = new Map(
-      currentTabs
-        .filter((t) => t.url)
-        .map((t) => [t.url!, t]),
-    )
 
     for (const op of operations) {
       try {
@@ -259,7 +254,12 @@ export const applyOperationsToTabs = (
     }
 
     console.log(`Finished applying operations to tabs`)
-  })
+  }).pipe(
+    annotateOperation("SyncService", "applyOperationsToTabs", {
+      windowId,
+      operationCount: operations.length,
+    }),
+  )
 
 // ============================================================================
 // Apply Operations to Bookmarks
@@ -276,9 +276,14 @@ export const applyOperationsToBookmarks = (
   workspaceId: string,
   operations: ReadonlyArray<Operation>,
   browserApi: BrowserApiService,
-): Effect.Effect<void> =>
+): Effect.Effect<
+  void,
+  import("../browser-api-service/types.ts").BookmarkOperationError
+> =>
   Effect.gen(function* () {
-    console.log(`Applying ${operations.length} operations to bookmarks in workspace ${workspaceId}`)
+    console.log(
+      `Applying ${operations.length} operations to bookmarks in workspace ${workspaceId}`,
+    )
 
     // Get workspace tree
     const workspaceTree = yield* browserApi.bookmarks
@@ -350,7 +355,10 @@ export const applyOperationsToBookmarks = (
     }
 
     // Helper: Find or create [pinned] folder
-    const ensurePinnedFolder = (): Effect.Effect<string> =>
+    const ensurePinnedFolder = (): Effect.Effect<
+      string,
+      import("../browser-api-service/types.ts").BookmarkOperationError
+    > =>
       Effect.gen(function* () {
         // ✅ FIX: Check cache first to prevent duplicates
         if (pinnedFolderId) {
@@ -365,7 +373,7 @@ export const applyOperationsToBookmarks = (
 
         if (pinnedFolder) {
           console.log(`  Found existing [pinned] folder: ${pinnedFolder.id}`)
-          pinnedFolderId = pinnedFolder.id  // ✅ Cache it
+          pinnedFolderId = pinnedFolder.id // ✅ Cache it
           return pinnedFolder.id
         }
 
@@ -389,17 +397,24 @@ export const applyOperationsToBookmarks = (
       groupTitle: string,
       groupColor: string,
       groupCollapsed: boolean,
-    ): Effect.Effect<string> =>
+    ): Effect.Effect<
+      string,
+      import("../browser-api-service/types.ts").BookmarkOperationError
+    > =>
       Effect.gen(function* () {
         // ✅ Try to find existing folder by title+color
         const existingFolderId = findGroupFolder(groupTitle, groupColor)
         if (existingFolderId) {
-          console.log(`  Found existing group folder for "${groupTitle}" (${groupColor})`)
+          console.log(
+            `  Found existing group folder for "${groupTitle}" (${groupColor})`,
+          )
           return existingFolderId
         }
 
         // Create new group folder
-        console.log(`  Creating new group folder for "${groupTitle}" (${groupColor})`)
+        console.log(
+          `  Creating new group folder for "${groupTitle}" (${groupColor})`,
+        )
         const folderTitle = createGroupTitle(
           groupTitle,
           groupColor,
@@ -417,13 +432,13 @@ export const applyOperationsToBookmarks = (
     // ✅ Sort operations - ADD_GROUP before ADD_ITEM
     const sortedOperations = [...operations].sort((a, b) => {
       const priority: Record<string, number> = {
-        'ADD_GROUP': 0,
-        'ADD_ITEM': 1,
-        'UPDATE_GROUP': 2,
-        'UPDATE_ITEM': 3,
-        'MOVE_ITEM': 4,
-        'DELETE_ITEM': 5,
-        'DELETE_GROUP': 6,
+        "ADD_GROUP": 0,
+        "ADD_ITEM": 1,
+        "UPDATE_GROUP": 2,
+        "UPDATE_ITEM": 3,
+        "MOVE_ITEM": 4,
+        "DELETE_ITEM": 5,
+        "DELETE_GROUP": 6,
       }
       return (priority[a.type] || 99) - (priority[b.type] || 99)
     })
@@ -453,7 +468,9 @@ export const applyOperationsToBookmarks = (
                   groupOp.group.collapsed,
                 )
               } else {
-                console.warn(`  No ADD_GROUP operation found for group ${op.item.groupId}`)
+                console.warn(
+                  `  No ADD_GROUP operation found for group ${op.item.groupId}`,
+                )
               }
             }
 
@@ -516,7 +533,11 @@ export const applyOperationsToBookmarks = (
               : { pinned: false, renamed: false, title: "" }
 
             // Update title if changed
-            if (op.changes.title !== undefined || op.changes.renamed !== undefined || op.changes.pinned !== undefined) {
+            if (
+              op.changes.title !== undefined ||
+              op.changes.renamed !== undefined ||
+              op.changes.pinned !== undefined
+            ) {
               const newTitle = createBookmarkTitle(
                 op.changes.title ?? currentStatus.title,
                 op.changes.pinned ?? currentStatus.pinned,
@@ -545,7 +566,8 @@ export const applyOperationsToBookmarks = (
               } else if (op.changes.groupId && op.changes.groupId !== null) {
                 // ✅ Find corresponding ADD_GROUP operation to get group title+color
                 const groupOp = sortedOperations.find(
-                  (o) => o.type === "ADD_GROUP" && o.group.id === op.changes.groupId,
+                  (o) =>
+                    o.type === "ADD_GROUP" && o.group.id === op.changes.groupId,
                 )
 
                 if (groupOp && groupOp.type === "ADD_GROUP") {
@@ -555,7 +577,9 @@ export const applyOperationsToBookmarks = (
                     groupOp.group.collapsed,
                   )
                 } else {
-                  console.warn(`  No ADD_GROUP operation found for group ${op.changes.groupId}`)
+                  console.warn(
+                    `  No ADD_GROUP operation found for group ${op.changes.groupId}`,
+                  )
                 }
               }
 
@@ -596,7 +620,10 @@ export const applyOperationsToBookmarks = (
             console.log(`  [ADD_GROUP] ${op.group.title}`)
 
             // ✅ Find or create folder by title+color
-            const existingFolderId = findGroupFolder(op.group.title, op.group.color)
+            const existingFolderId = findGroupFolder(
+              op.group.title,
+              op.group.color,
+            )
 
             if (existingFolderId) {
               console.log(`  Group folder already exists: ${existingFolderId}`)
@@ -648,7 +675,9 @@ export const applyOperationsToBookmarks = (
 
             if (groupFolder) {
               // Get current metadata
-              const { title, color, collapsed } = parseGroupMetadata(groupFolder.title)
+              const { title, color, collapsed } = parseGroupMetadata(
+                groupFolder.title,
+              )
 
               // Apply changes (note: title and color shouldn't change as they're used for matching)
               const newTitle = createGroupTitle(
@@ -678,7 +707,12 @@ export const applyOperationsToBookmarks = (
     }
 
     console.log(`Finished applying operations to bookmarks`)
-  })
+  }).pipe(
+    annotateOperation("SyncService", "applyOperationsToBookmarks", {
+      workspaceId,
+      operationCount: operations.length,
+    }),
+  )
 
 // ============================================================================
 // Helper Functions
@@ -728,31 +762,4 @@ const findBookmarkNodeById = (
   }
 
   return null
-}
-
-/**
- * Parse group metadata from bookmark folder
- */
-const parseGroupMetadata = (
-  title: string,
-): { title: string; color: string; collapsed: boolean } => {
-  // Format: "[color|collapsed] Title"
-  // Example: "[blue|true] Work" or "[red|false] Personal"
-
-  const match = title.match(/^\[([^|]+)\|([^|]+)\]\s*(.*)$/)
-
-  if (match) {
-    return {
-      color: match[1],
-      collapsed: match[2] === "true",
-      title: match[3] || "Untitled",
-    }
-  }
-
-  // Fallback
-  return {
-    color: "grey",
-    collapsed: false,
-    title: title || "Untitled",
-  }
 }

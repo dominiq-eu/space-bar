@@ -39,8 +39,8 @@ export type {
   TabUpdatedEvent,
 } from "./types.ts"
 
-// Export the implementation layer
-export { TabsServiceLive } from "./implementation.ts"
+// Export the implementation layers
+export { TabsServiceLive, TabsServiceTest } from "./implementation.ts"
 
 // Re-export constants (if any)
 export * from "./constants.ts"
@@ -53,28 +53,3 @@ export {
   mapChromeTabs,
   mapTabChangeInfo,
 } from "./mappers.ts"
-
-// ==============================================================================
-// Backwards Compatibility Exports
-// ==============================================================================
-// Re-export old API from index.old.ts for backwards compatibility
-// This allows existing code to continue working while we migrate to the new
-// Service-based API.
-
-export {
-  activateTab,
-  createTab,
-  getTab,
-  getTabGroup,
-  getTabGroups,
-  getTabs,
-  groupTabs,
-  moveTab,
-  removeTab,
-  removeTabs,
-  subscribeToTabEvents,
-  toggleGroupCollapsed,
-  ungroupTabs,
-  updateTab,
-  updateTabGroup,
-} from "./index.old.ts"

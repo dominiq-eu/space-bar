@@ -1,10 +1,8 @@
 import { Effect } from "effect"
-import {
-  BrowserApiService,
-  ChromeApiServiceLive,
-} from "../browser-api-service/index.ts"
-import type { WorkspaceId } from "../state-service/types.ts"
+import { BrowserApiService } from "../browser-api-service/index.ts"
+import type { WorkspaceId } from "../state-service/schema.ts"
 import { parseBookmarkPinnedStatus } from "./metadata-parser.ts"
+import { annotateOperation } from "../../utils/logging.ts"
 
 /**
  * Recursively collects all bookmark URLs and titles from a workspace folder
@@ -42,11 +40,19 @@ const collectBookmarkTitles = (
  */
 export const getBookmarkTitlesForWorkspace = (
   workspaceId: WorkspaceId,
-): Effect.Effect<Map<string, string>, never> => {
+): Effect.Effect<Map<string, string>, never, BrowserApiService> => {
   const program = Effect.gen(function* () {
     const browserApi = yield* BrowserApiService
 
     const results = yield* browserApi.bookmarks.getSubTree(workspaceId).pipe(
+      Effect.tapError((error) =>
+        Effect.logWarning(
+          "Failed to load bookmark subtree, returning empty map",
+          error,
+        ).pipe(
+          Effect.annotateLogs({ workspaceId }),
+        )
+      ),
       Effect.catchAll(() => Effect.succeed([])),
     )
 
@@ -64,8 +70,18 @@ export const getBookmarkTitlesForWorkspace = (
   })
 
   return program.pipe(
-    Effect.provide(ChromeApiServiceLive),
+    Effect.tapError((error) =>
+      Effect.logWarning(
+        "Failed to get bookmark titles for workspace",
+        error,
+      ).pipe(
+        Effect.annotateLogs({ workspaceId }),
+      )
+    ),
     Effect.catchAll(() => Effect.succeed(new Map())),
+    annotateOperation("WorkspacesService", "getBookmarkTitlesForWorkspace", {
+      workspaceId,
+    }),
   )
 }
 
@@ -78,7 +94,11 @@ export const getBookmarkTitlesForWorkspace = (
  */
 export const getBookmarkTitlesForWorkspaces = (
   workspaceIds: WorkspaceId[],
-): Effect.Effect<Map<WorkspaceId, Map<string, string>>, never> =>
+): Effect.Effect<
+  Map<WorkspaceId, Map<string, string>>,
+  never,
+  BrowserApiService
+> =>
   Effect.gen(function* () {
     const result = new Map<WorkspaceId, Map<string, string>>()
 

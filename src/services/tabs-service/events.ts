@@ -1,5 +1,5 @@
 import { Schema } from "effect"
-import { GroupId, Tab, TabId, WindowId } from "../state-service/types.ts"
+import { GroupId, Tab, TabId, WindowId } from "../state-service/schema.ts"
 
 /**
  * Tab Created Event

@@ -1,29 +1,25 @@
 import { useEffect, useState } from "preact/hooks"
 import { Effect, Option } from "effect"
-import {
-  BrowserApiService,
-  ChromeApiServiceLive,
-} from "../services/browser-api-service/index.ts"
-import type { AppState, WindowId } from "../services/state-service/types.ts"
-import { createAppState } from "../services/state-service/index.ts"
+import type { AppState } from "../services/state-service/schema.ts"
 import {
   STORAGE_KEY_WINDOW_WORKSPACE_MAP,
-  unlinkWindow,
 } from "../services/storage-service/index.ts"
-
-// Helper to get BrowserApiService instance
-const getBrowserApi = () => {
-  const program = Effect.gen(function* () {
-    return yield* BrowserApiService
-  })
-  return Effect.runSync(program.pipe(Effect.provide(ChromeApiServiceLive)))
-}
+import {
+  useBrowserApi,
+  useStateService,
+  useStorageService,
+} from "../components/service-context.tsx"
+import { Validators } from "../services/validation-service/index.ts"
 
 export function useAppState() {
+  const browserApi = useBrowserApi()
+  const stateService = useStateService()
+  const storageService = useStorageService()
+
   const [state, setState] = useState<AppState | null>(null)
 
   const loadState = () => {
-    Effect.runPromise(createAppState()).then(setState)
+    Effect.runPromise(stateService.createAppState).then(setState)
   }
 
   // Debounced version for heavy updates
@@ -49,8 +45,6 @@ export function useAppState() {
 
   useEffect(() => {
     loadState()
-
-    const browserApi = getBrowserApi()
 
     // --- Incremental Update Handlers ---
 
@@ -89,11 +83,15 @@ export function useAppState() {
               ...t,
               title: changeInfo.title || t.title,
               favIconUrl: newFavIconUrl,
-              pinned: changeInfo.pinned !== undefined ? changeInfo.pinned : t.pinned,
+              pinned: changeInfo.pinned !== undefined
+                ? changeInfo.pinned
+                : t.pinned,
             }
 
             if (changeInfo.pinned !== undefined) {
-              console.log(`Tab ${tabId} pinned status updated from ${t.pinned} to ${updatedTab.pinned}`)
+              console.log(
+                `Tab ${tabId} pinned status updated from ${t.pinned} to ${updatedTab.pinned}`,
+              )
             }
 
             return updatedTab
@@ -149,7 +147,14 @@ export function useAppState() {
     const onWindowCreated = () => loadStateDebounced()
     const onWindowRemoved = (windowId: number) => {
       loadStateDebounced()
-      Effect.runPromise(unlinkWindow(windowId as WindowId))
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const validatedWindowId = yield* Validators.windowId(windowId)
+          yield* storageService.unlinkWindow(validatedWindowId)
+        }).pipe(
+          Effect.catchAll(() => Effect.succeed(undefined)),
+        ),
+      )
     }
 
     const onBookmarksChanged = () => loadStateDebounced()

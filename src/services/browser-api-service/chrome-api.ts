@@ -510,25 +510,30 @@ const make = Effect.sync(() => {
           })
         }),
 
-      move: (id: string, destination: chrome.bookmarks.BookmarkDestinationArg) =>
-        Effect.async<chrome.bookmarks.BookmarkTreeNode, BookmarkOperationError>((resume) => {
-          chrome.bookmarks.move(id, destination, (result) => {
-            if (chrome.runtime.lastError) {
-              resume(
-                Effect.fail(
-                  new BookmarkOperationError({
-                    operation: "move",
-                    reason: chrome.runtime.lastError.message ||
-                      "Unknown error",
-                    bookmarkId: id,
-                  }),
-                ),
-              )
-            } else {
-              resume(Effect.succeed(result))
-            }
-          })
-        }),
+      move: (
+        id: string,
+        destination: chrome.bookmarks.BookmarkDestinationArg,
+      ) =>
+        Effect.async<chrome.bookmarks.BookmarkTreeNode, BookmarkOperationError>(
+          (resume) => {
+            chrome.bookmarks.move(id, destination, (result) => {
+              if (chrome.runtime.lastError) {
+                resume(
+                  Effect.fail(
+                    new BookmarkOperationError({
+                      operation: "move",
+                      reason: chrome.runtime.lastError.message ||
+                        "Unknown error",
+                      bookmarkId: id,
+                    }),
+                  ),
+                )
+              } else {
+                resume(Effect.succeed(result))
+              }
+            })
+          },
+        ),
     },
 
     // ========================================================================
@@ -736,6 +741,16 @@ const make = Effect.sync(() => {
       ) => {
         chrome.bookmarks.onRemoved.addListener(callback)
         return () => chrome.bookmarks.onRemoved.removeListener(callback)
+      },
+
+      onBookmarkMoved: (
+        callback: (
+          id: string,
+          moveInfo: chrome.bookmarks.BookmarkMoveInfo,
+        ) => void,
+      ) => {
+        chrome.bookmarks.onMoved.addListener(callback)
+        return () => chrome.bookmarks.onMoved.removeListener(callback)
       },
 
       onBookmarkChanged: (

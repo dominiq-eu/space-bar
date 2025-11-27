@@ -1,32 +1,12 @@
 import { useEffect, useState } from "preact/hooks"
 import { Effect } from "effect"
+import type { AppState } from "../services/state-service/types.ts"
 import {
-  BrowserApiService,
-  ChromeApiServiceLive,
-} from "../services/browser-api-service/index.ts"
-import type {
-  AppState,
-  WindowId,
-  WorkspaceId,
-} from "../services/state-service/types.ts"
-import {
-  getBookmarksBar,
-  loadWorkspaceInWindow,
-  restoreWorkspace,
-  saveWorkspace,
-} from "../services/workspaces-service/index.ts"
-import {
-  linkWindowToWorkspace,
-  unlinkWindow,
-} from "../services/storage-service/index.ts"
-
-// Helper to get BrowserApiService instance
-const getBrowserApi = () => {
-  const program = Effect.gen(function* () {
-    return yield* BrowserApiService
-  })
-  return Effect.runSync(program.pipe(Effect.provide(ChromeApiServiceLive)))
-}
+  useBrowserApi,
+  useStorageService,
+  useWorkspacesService,
+} from "./service-context.tsx"
+import { Validators } from "../services/validation-service/index.ts"
 
 export interface WorkspaceBarProps {
   currentWindowId: number | null
@@ -39,6 +19,10 @@ export function WorkspaceBar({
   linkedWorkspaceId,
   state,
 }: WorkspaceBarProps) {
+  const browserApi = useBrowserApi()
+  const workspacesService = useWorkspacesService()
+  const storageService = useStorageService()
+
   const [workspaces, setWorkspaces] = useState<
     chrome.bookmarks.BookmarkTreeNode[]
   >([])
@@ -65,22 +49,21 @@ export function WorkspaceBar({
   >(null)
 
   const loadWorkspaces = () => {
-    const browserApi = getBrowserApi()
-    Effect.runPromise(getBookmarksBar).then((bookmarksBar) => {
-      Effect.runPromise(
-        browserApi.bookmarks.getChildren(bookmarksBar.id).pipe(
-          Effect.catchAll(() => Effect.succeed([])),
-        ),
-      ).then((children) => {
-        setWorkspaces(children.filter((child) => !child.url))
-      })
-    })
+    Effect.runPromise(workspacesService.getBookmarksBar()).then(
+      (bookmarksBar) => {
+        Effect.runPromise(
+          browserApi.bookmarks.getChildren(bookmarksBar.id).pipe(
+            Effect.catchAll(() => Effect.succeed([])),
+          ),
+        ).then((children) => {
+          setWorkspaces(children.filter((child) => !child.url))
+        })
+      },
+    )
   }
 
   useEffect(() => {
     loadWorkspaces()
-
-    const browserApi = getBrowserApi()
 
     // Listen for bookmark changes to update the workspace bar
     const onBookmarksChanged = () => {
@@ -139,7 +122,11 @@ export function WorkspaceBar({
 
     setIsLoading(true)
     Effect.runPromise(
-      loadWorkspaceInWindow(workspaceId, currentWindowId, false),
+      workspacesService.loadWorkspaceInWindow(
+        workspaceId,
+        currentWindowId,
+        false,
+      ),
     )
       .then(() => {
         setIsLoading(false)
@@ -155,7 +142,7 @@ export function WorkspaceBar({
 
     setIsLoading(true)
     Effect.runPromise(
-      loadWorkspaceInWindow(
+      workspacesService.loadWorkspaceInWindow(
         takeoverDialog.workspaceId,
         currentWindowId,
         keepTabs,
@@ -173,15 +160,16 @@ export function WorkspaceBar({
   }
 
   const handleRestoreWorkspace = (workspaceId: string) => {
-    Effect.runPromise(restoreWorkspace(workspaceId)).catch((error) => {
-      console.error("Failed to restore workspace:", error)
-    })
+    Effect.runPromise(workspacesService.restoreWorkspace(workspaceId)).catch(
+      (error) => {
+        console.error("Failed to restore workspace:", error)
+      },
+    )
     setContextMenu(null)
   }
 
   const handleDeleteWorkspace = (workspaceId: string) => {
     if (confirm("Delete this workspace?")) {
-      const browserApi = getBrowserApi()
       Effect.runPromise(browserApi.bookmarks.removeTree(workspaceId))
         .then(() => {
           loadWorkspaces()
@@ -218,10 +206,14 @@ export function WorkspaceBar({
     if (!currentWindowId) return
 
     // Unlink the window from the workspace (tabs stay open)
-    Effect.runPromise(unlinkWindow(currentWindowId as WindowId))
-      .catch((error) => {
-        console.error("Failed to unlink workspace:", error)
-      })
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const validatedWindowId = yield* Validators.windowId(currentWindowId)
+        yield* storageService.unlinkWindow(validatedWindowId)
+      }),
+    ).catch((error) => {
+      console.error("Failed to unlink workspace:", error)
+    })
   }
 
   const handleConfirmDialog = () => {
@@ -245,7 +237,6 @@ export function WorkspaceBar({
         return
       }
 
-      const browserApi = getBrowserApi()
       Effect.runPromise(
         browserApi.bookmarks.update(workspaceDialog.workspaceId, {
           title: workspaceName,
@@ -275,7 +266,7 @@ export function WorkspaceBar({
         return
       }
 
-      Effect.runPromise(saveWorkspace(workspaceName, state))
+      Effect.runPromise(workspacesService.saveWorkspace(workspaceName, state))
         .then((workspaceFolder) => {
           setWorkspaceName("")
           setWorkspaceDialog(null)
@@ -284,10 +275,18 @@ export function WorkspaceBar({
           // Automatically link the new workspace to the current window
           if (workspaceFolder.id && currentWindowId !== null) {
             Effect.runPromise(
-              linkWindowToWorkspace(
-                currentWindowId as WindowId,
-                workspaceFolder.id as WorkspaceId,
-              ),
+              Effect.gen(function* () {
+                const validatedWindowId = yield* Validators.windowId(
+                  currentWindowId,
+                )
+                const validatedWorkspaceId = yield* Validators.workspaceId(
+                  workspaceFolder.id,
+                )
+                yield* storageService.linkWindowToWorkspace(
+                  validatedWindowId,
+                  validatedWorkspaceId,
+                )
+              }),
             ).catch((error) => {
               console.error("Failed to link workspace:", error)
             })
